@@ -1,0 +1,535 @@
+// ProofGate — privacy-preserving compliance gateway on the Midnight blockchain
+// ============================================================================
+// v3 — issuer-signed, wallet-bound, policy-versioned credentials.
+//
+// ARCHITECTURE (what ProofGate is and is not):
+//   ProofGate is NOT a KYC provider. KYC is performed by an external issuer.
+//   The issuer signs a credential (claims about the user). The user keeps that
+//   credential privately in their wallet. ProofGate verifies the issuer's
+//   signature and the eligibility predicates in zero knowledge, and converts
+//   eligibility into an enforceable one-time permit that third-party dApps can
+//   verify and consume.
+//
+// SIGNATURE SCHEME (Schnorr over Jubjub, verified IN-CIRCUIT):
+//   * Keygen:  sk_I <-_R [0, r);  P_I = sk_I * G
+//   * Sign(m): k <-_R [0, r);  R = k * G;
+//              e = degradeToTransient(persistentHash(m))
+//              s = (k + e * sk_I) mod r;      signature = (R, s)
+//   * Verify:  s * G == R + e * P_I
+//   where r is the order of the embedded curve (Jubjub over BLS12-381 Fr).
+//
+// SIGNED MESSAGE (the credential document) — 18 fixed 32-byte slots, in order:
+//   0  domain tag            pad(32, "ProofGateSchnorr:v1")
+//   1  R.x   2 R.y           signature nonce point (LE coordinates)
+//   3  issuerPkX  4 issuerPkY  issuer public key (LE coordinates)
+//   5  issuerId              persistentHash("ProofGateIssuer:v1" || pkX || pkY)
+//   6  subjectPkX 7 subjectPkY  subject public key (LE coordinates)
+//   8  subjectCommitment     persistentHash("ProofGateSubject:v1" || domain || pkX || pkY)
+//   9  credentialId          fresh random 32 bytes (revocation id)
+//  10  credentialVersion     LE Uint<8>
+//  11  ageClaim              LE Uint<8>
+//  12  jurisdictionClaim     pad(32, code)
+//  13  kycLevelClaim         LE Uint<8>
+//  14  issuedAt              LE Uint<64> (unix seconds)
+//  15  expiresAt             LE Uint<64> (unix seconds)
+//  16  policyVersion         LE Uint<8>
+//  17  contractDomain        the ProofGate instance domain (from the ledger)
+//
+// The signature therefore covers: issuer identity, subject binding, credential
+// id, credential version, age, jurisdiction, KYC level, issue/expiry time,
+// policy reference and the ProofGate instance domain (cross-contract replay
+// protection via domain separation).
+//
+// ENCODING CONVENTION (must match src/schnorr.ts exactly):
+//   * Points and scalars are 32-byte LITTLE-ENDIAN field elements. `as Field`
+//     compiles to convertBytesToField = LE_int, the exact inverse of le32, so
+//     coordinates < the base-field modulus p round-trip losslessly.
+//   * The challenge scalar e = degradeToTransient(hash) is always < 2^248 < r,
+//     hence a valid embedded-field scalar without modular reduction.
+//
+// ON-CHAIN PRIVACY:
+//   The ledger stores only pseudonyms (domain-separated commitments), status
+//   flags, expiry times, KYC level and policy parameters. Raw age, jurisdiction,
+//   the credential signature, the subject secret key and the issuer signing key
+//   are PRIVATE WITNESSES and never touch the chain.
+// ============================================================================
+
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+export enum SubjectStatus {
+  NONE,
+  ACTIVE,
+  SUSPENDED,
+  REVOKED,
+}
+
+export enum IssuerStatus {
+  NONE,
+  ACTIVE,
+  SUSPENDED,
+  REVOKED,
+}
+
+export enum PermitStatus {
+  VALID,
+  CONSUMED,
+  REVOKED,
+}
+
+export struct Subject {
+  status: SubjectStatus,
+  credId: Bytes<32>,
+  issuerId: Bytes<32>,
+  kycLevel: Uint<8>,
+  policyVersion: Uint<8>,
+  expiresAt: Uint<64>,
+  registeredAt: Uint<64>,
+}
+
+export struct Issuer {
+  status: IssuerStatus,
+  pkX: Bytes<32>,
+  pkY: Bytes<32>,
+  metadataHash: Bytes<32>,
+  createdAt: Uint<64>,
+  revokedAt: Uint<64>,
+}
+
+export struct Permit {
+  holder: Bytes<32>,
+  feature: Bytes<32>,
+  policyId: Bytes<32>,
+  policyVersion: Uint<8>,
+  credId: Bytes<32>,
+  issuedAt: Uint<64>,
+  expiresAt: Uint<64>,
+  status: PermitStatus,
+}
+
+export ledger k: Kernel;
+export ledger contractDomain: Bytes<32>;
+export ledger adminPk: Bytes<32>;
+export ledger activePolicyId: Bytes<32>;
+export ledger activePolicyVersion: Uint<8>;
+export ledger minimumAge: Uint<8>;
+export ledger requiredKycLevel: Uint<8>;
+export ledger requiredCredentialVersion: Uint<8>;
+export ledger jurisdictionCommitment: Bytes<32>;
+export ledger issuers: Map<Bytes<32>, Issuer>;
+export ledger subjects: Map<Bytes<32>, Subject>;
+export ledger revoked: Set<Bytes<32>>;
+export ledger permits: Map<Bytes<32>, Permit>;
+export ledger seq: Counter;
+
+// ADMIN PRIVATE: master secret behind adminPk (proves admin in admin circuits).
+witness adminSecret(): Bytes<32>;
+// SUBJECT PRIVATE: the scalar whose public key the issuer signed.
+witness subjectSk(): Bytes<32>;
+witness subjectPkX(): Bytes<32>;
+witness subjectPkY(): Bytes<32>;
+// ISSUER PUBLIC KEY (private coordinates; the id hash and the key itself are
+// public once the issuer is registered in the registry).
+witness issuerPkX(): Bytes<32>;
+witness issuerPkY(): Bytes<32>;
+// SIGNED CREDENTIAL FIELDS.
+witness signedIssuerId(): Bytes<32>;
+witness subjectCommitment(): Bytes<32>;
+witness credentialId(): Bytes<32>;
+witness credentialVersion(): Uint<8>;
+witness credentialVersionSlot(): Bytes<32>;
+witness age(): Uint<8>;
+witness ageSlot(): Bytes<32>;
+witness jurisdiction(): Bytes<32>;
+witness kycLevel(): Uint<8>;
+witness kycLevelSlot(): Bytes<32>;
+witness issuedAt(): Uint<64>;
+witness issuedAtSlot(): Bytes<32>;
+witness expiresAt(): Uint<64>;
+witness expiresAtSlot(): Bytes<32>;
+witness policyVersion(): Uint<8>;
+witness policyVersionSlot(): Bytes<32>;
+// SCHNORR SIGNATURE (R, s).
+witness rx(): Bytes<32>;
+witness ry(): Bytes<32>;
+witness s(): Bytes<32>;
+// PER-PERMIT RANDOMNESS: makes permit ids unlinkable.
+witness permitSalt(): Bytes<32>;
+
+constructor(contractDomainParam: Bytes<32>, adminPkParam: Bytes<32>) {
+  contractDomain = disclose(contractDomainParam);
+  adminPk = disclose(adminPkParam);
+}
+
+// ---------------------------------------------------------------------------
+// HASH IDENTIFIERS (domain-separated commitments)
+// ---------------------------------------------------------------------------
+
+export circuit adminKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "ProofGateAdmin:v1"), sk]);
+}
+
+export circuit issuerId(pkX: Bytes<32>, pkY: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "ProofGateIssuer:v1"), pkX, pkY]);
+}
+
+// The contract domain is bound into the subject pseudonym so the same user has
+// different pseudonyms on different ProofGate instances (cross-app unlinkability).
+export circuit subjectKey(domain: Bytes<32>, pkX: Bytes<32>, pkY: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([pad(32, "ProofGateSubject:v1"), domain, pkX, pkY]);
+}
+
+// ---------------------------------------------------------------------------
+// SCHNORR CHALLENGE — covers every signed field (see header for slot layout).
+// ---------------------------------------------------------------------------
+
+circuit schnorrChallenge(domain: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<18, Bytes<32>>>([
+    pad(32, "ProofGateSchnorr:v1"),
+    rx(),
+    ry(),
+    issuerPkX(),
+    issuerPkY(),
+    signedIssuerId(),
+    subjectPkX(),
+    subjectPkY(),
+    subjectCommitment(),
+    credentialId(),
+    credentialVersionSlot(),
+    ageSlot(),
+    jurisdiction(),
+    kycLevelSlot(),
+    issuedAtSlot(),
+    expiresAtSlot(),
+    policyVersionSlot(),
+    domain,
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// SCHNORR VERIFICATION — in-circuit: s*G == R + e*P_I.
+// ---------------------------------------------------------------------------
+
+export circuit checkSignature(domain: Bytes<32>): [] {
+  const R = constructJubjubPoint(rx() as Field, ry() as Field);
+  const P = constructJubjubPoint(issuerPkX() as Field, issuerPkY() as Field);
+  const e = degradeToTransient(schnorrChallenge(domain));
+  const lhs = ecMulGenerator(s() as Field);
+  const rhs = ecAdd(R, ecMul(P, e));
+  assert(jubjubPointX(lhs) == jubjubPointX(rhs), "signature x mismatch");
+  assert(jubjubPointY(lhs) == jubjubPointY(rhs), "signature y mismatch");
+}
+
+// ---------------------------------------------------------------------------
+// POSSESSION — the caller knows the secret key behind the signed subject
+// public key, so a stolen signature cannot be replayed by a different wallet.
+// ---------------------------------------------------------------------------
+
+export circuit checkPossession(): [] {
+  assert(
+    ecMulGenerator(subjectSk() as Field) == constructJubjubPoint(subjectPkX() as Field, subjectPkY() as Field),
+    "subject key mismatch"
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CREDENTIAL PREDICATES — asserted over the *signed* attributes.
+// ---------------------------------------------------------------------------
+
+export circuit checkCredential(juris: Vector<8, Bytes<32>>, domain: Bytes<32>): [] {
+  // Numeric slots must match their Uint witnesses (both are signed).
+  assert(credentialVersionSlot() as Field == credentialVersion() as Field, "credential version slot mismatch");
+  assert(ageSlot() as Field == age() as Field, "age attribute not bound to signature");
+  assert(kycLevelSlot() as Field == kycLevel() as Field, "kyc level not bound to signature");
+  assert(issuedAtSlot() as Field == issuedAt() as Field, "issuedAt not bound to signature");
+  assert(expiresAtSlot() as Field == expiresAt() as Field, "expiresAt not bound to signature");
+  assert(policyVersionSlot() as Field == policyVersion() as Field, "policy version not bound to signature");
+
+  // The signed issuer id must equal the commitment of the signing public key.
+  assert(signedIssuerId() == issuerId(disclose(issuerPkX()), disclose(issuerPkY())), "issuer id mismatch");
+
+  // The signed subject commitment must equal this instance's pseudonym.
+  assert(subjectCommitment() == subjectKey(domain, disclose(subjectPkX()), disclose(subjectPkY())), "subject commitment mismatch");
+
+  // Time sanity: expiry strictly after issue.
+  assert(expiresAt() > issuedAt(), "expiry not after issue");
+
+  // A policy must have been activated.
+  assert(!(activePolicyId.read() == pad(32, "")), "no active policy");
+
+  // The credential must reference the currently active policy. An old policy
+  // never silently becomes a new policy.
+  assert(policyVersion() == activePolicyVersion.read(), "policy version mismatch");
+
+  // Credential schema compatibility with the active policy.
+  assert(credentialVersion() == requiredCredentialVersion.read(), "credential version not accepted");
+
+  // Compliance predicates over the *signed* attributes.
+  assert(age() >= minimumAge.read(), "below minimum age");
+  assert(kycLevel() >= requiredKycLevel.read(), "insufficient kyc level");
+  // The supplied jurisdiction list must match the policy commitment and the
+  // signed jurisdiction must be in it.
+  assert(persistentHash<Vector<8, Bytes<32>>>(juris) == jurisdictionCommitment.read(), "jurisdiction commitment mismatch");
+  const j = jurisdiction();
+  assert(
+    j == juris[0] || j == juris[1] || j == juris[2] || j == juris[3] ||
+    j == juris[4] || j == juris[5] || j == juris[6] || j == juris[7],
+    "jurisdiction not allowed"
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GOVERNANCE — explicit admin rotation (temporary trust model, see docs).
+// ---------------------------------------------------------------------------
+
+export circuit rotateAdmin(newAdminPk: Bytes<32>): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  adminPk = disclose(newAdminPk);
+  seq.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// POLICY — versioned, admin-governed. Never silently retrofits old credentials.
+// ---------------------------------------------------------------------------
+
+export circuit setPolicy(
+  policyIdParam: Bytes<32>,
+  versionParam: Uint<8>,
+  minimumAgeParam: Uint<8>,
+  requiredKycLevelParam: Uint<8>,
+  requiredCredentialVersionParam: Uint<8>,
+  jurisdictionCommitmentParam: Bytes<32>,
+  jurisdictionsParam: Vector<8, Bytes<32>>
+): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(versionParam > 0, "policy version must be positive");
+  assert(
+    persistentHash<Vector<8, Bytes<32>>>(jurisdictionsParam) == disclose(jurisdictionCommitmentParam),
+    "jurisdiction commitment mismatch"
+  );
+  activePolicyId = disclose(policyIdParam);
+  activePolicyVersion = disclose(versionParam);
+  minimumAge = disclose(minimumAgeParam);
+  requiredKycLevel = disclose(requiredKycLevelParam);
+  requiredCredentialVersion = disclose(requiredCredentialVersionParam);
+  jurisdictionCommitment = disclose(jurisdictionCommitmentParam);
+  seq.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// ISSUER REGISTRY — status-tracked, admin-governed.
+// ---------------------------------------------------------------------------
+
+export circuit registerIssuer(issuerPkXParam: Bytes<32>, issuerPkYParam: Bytes<32>, metadataHash: Bytes<32>): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  const id = disclose(issuerId(disclose(issuerPkXParam), disclose(issuerPkYParam)));
+  assert(!issuers.member(id), "issuer already registered");
+  issuers.insert(id, Issuer {
+    status: IssuerStatus.ACTIVE,
+    pkX: disclose(issuerPkXParam),
+    pkY: disclose(issuerPkYParam),
+    metadataHash: disclose(metadataHash),
+    createdAt: seq.read(),
+    revokedAt: 0,
+  });
+  seq.increment(1);
+}
+
+export circuit setIssuerStatus(issuerPkXParam: Bytes<32>, issuerPkYParam: Bytes<32>, status: IssuerStatus): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  const id = disclose(issuerId(disclose(issuerPkXParam), disclose(issuerPkYParam)));
+  assert(issuers.member(id), "issuer not registered");
+  const issuer = issuers.lookup(id);
+  assert(
+    status == IssuerStatus.ACTIVE || status == IssuerStatus.SUSPENDED || status == IssuerStatus.REVOKED,
+    "invalid status"
+  );
+  issuers.insert(id, Issuer {
+    status: disclose(status),
+    pkX: issuer.pkX,
+    pkY: issuer.pkY,
+    metadataHash: issuer.metadataHash,
+    createdAt: issuer.createdAt,
+    revokedAt: seq.read(),
+  });
+  seq.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// CREDENTIAL REVOCATION — by issuer-chosen credential id.
+// ---------------------------------------------------------------------------
+
+export circuit revokeCredential(credIdParam: Bytes<32>): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  revoked.insert(disclose(credIdParam));
+  seq.increment(1);
+}
+
+export circuit unrevokeCredential(credIdParam: Bytes<32>): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  revoked.remove(disclose(credIdParam));
+  seq.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// SUBJECT STATE — admin may suspend/reactivate/revoke an individual subject.
+// ---------------------------------------------------------------------------
+
+export circuit setSubjectStatus(subjectPk: Bytes<32>, status: SubjectStatus): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(subjects.member(disclose(subjectPk)), "subject not found");
+  const subject = subjects.lookup(disclose(subjectPk));
+  assert(
+    status == SubjectStatus.ACTIVE || status == SubjectStatus.SUSPENDED || status == SubjectStatus.REVOKED,
+    "invalid status"
+  );
+  subjects.insert(disclose(subjectPk), Subject {
+    status: disclose(status),
+    credId: subject.credId,
+    issuerId: subject.issuerId,
+    kycLevel: subject.kycLevel,
+    policyVersion: subject.policyVersion,
+    expiresAt: subject.expiresAt,
+    registeredAt: subject.registeredAt,
+  });
+  seq.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// USER: register a credential issued by an active registered issuer.
+// Proves, without revealing any attribute or the signature:
+//   * the Schnorr signature verifies under the registered issuer key,
+//   * the caller owns the signed subject key,
+//   * every signed field is bound (issuer id, subject commitment, slots),
+//   * the credential is valid now (not future-issued, not expired),
+//   * the referenced policy is the active one and the claims satisfy it,
+//   * the credential and the subject are not already registered/revoked.
+// ---------------------------------------------------------------------------
+
+export circuit registerCredential(juris: Vector<8, Bytes<32>>): [] {
+  const id = disclose(issuerId(disclose(issuerPkX()), disclose(issuerPkY())));
+  assert(issuers.member(id), "credential issuer not registered");
+  assert(issuers.lookup(id).status == IssuerStatus.ACTIVE, "credential issuer not active");
+  checkSignature(contractDomain.read());
+  checkPossession();
+  checkCredential(juris, contractDomain.read());
+  assert(!k.blockTimeLessThan(disclose(issuedAt())), "credential not yet valid");
+  assert(k.blockTimeLessThan(disclose(expiresAt())), "credential expired");
+  const pk = disclose(subjectKey(contractDomain.read(), disclose(subjectPkX()), disclose(subjectPkY())));
+  assert(!subjects.member(pk), "already registered");
+  const cid = disclose(credentialId());
+  assert(!revoked.member(cid), "credential revoked");
+  subjects.insert(pk, Subject {
+    status: SubjectStatus.ACTIVE,
+    credId: cid,
+    issuerId: disclose(signedIssuerId()),
+    kycLevel: disclose(kycLevel()),
+    policyVersion: disclose(policyVersion()),
+    expiresAt: disclose(expiresAt()),
+    registeredAt: seq.read(),
+  });
+  seq.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// USER: request a one-time eligibility permit. The permit id is derived from
+// the authorization context (domain, holder, feature, policy, expiry, salt),
+// so permits are unlinkable and cannot be replayed across instances.
+// ---------------------------------------------------------------------------
+
+export circuit requestPermit(feature: Bytes<32>, expiresAt: Uint<64>, expiresAtSlot: Bytes<32>): Bytes<32> {
+  const pk = disclose(subjectKey(contractDomain.read(), disclose(subjectPkX()), disclose(subjectPkY())));
+  assert(subjects.member(pk), "credential not registered");
+  const subject = subjects.lookup(pk);
+  assert(subject.status == SubjectStatus.ACTIVE, "credential not active");
+  assert(!revoked.member(subject.credId), "credential revoked");
+  assert(k.blockTimeLessThan(disclose(subject.expiresAt)), "credential expired");
+  assert(subject.policyVersion == activePolicyVersion.read(), "credential policy no longer active");
+  assert(expiresAtSlot as Field == expiresAt as Field, "permit expiry slot mismatch");
+  assert(k.blockTimeLessThan(disclose(expiresAt)), "permit expiry must be in the future");
+  const permitId = disclose(
+    persistentHash<Vector<7, Bytes<32>>>([
+      pad(32, "ProofGatePermit:v1"),
+      contractDomain.read(),
+      pk,
+      disclose(feature),
+      activePolicyId.read(),
+      expiresAtSlot,
+      permitSalt(),
+    ])
+  );
+  permits.insert(
+    permitId,
+    Permit {
+      holder: pk,
+      feature: disclose(feature),
+      policyId: activePolicyId.read(),
+      policyVersion: subject.policyVersion,
+      credId: subject.credId,
+      issuedAt: seq.read(),
+      expiresAt: disclose(expiresAt),
+      status: PermitStatus.VALID
+    }
+  );
+  seq.increment(1);
+  return permitId;
+}
+
+// ---------------------------------------------------------------------------
+// USER: consume a permit to perform the regulated action exactly once.
+// ---------------------------------------------------------------------------
+
+export circuit consumePermit(feature: Bytes<32>, permitId: Bytes<32>): [] {
+  const pk = disclose(subjectKey(contractDomain.read(), disclose(subjectPkX()), disclose(subjectPkY())));
+  assert(subjects.member(pk), "credential not registered");
+  const subject = subjects.lookup(pk);
+  assert(subject.status == SubjectStatus.ACTIVE, "credential not active");
+  assert(!revoked.member(subject.credId), "credential revoked");
+  assert(k.blockTimeLessThan(disclose(subject.expiresAt)), "credential expired");
+  assert(permits.member(disclose(permitId)), "permit not found");
+  const permit = permits.lookup(disclose(permitId));
+  assert(permit.holder == pk, "permit belongs to another subject");
+  assert(permit.feature == feature, "feature mismatch");
+  assert(permit.status == PermitStatus.VALID, "permit not valid");
+  assert(k.blockTimeLessThan(disclose(permit.expiresAt)), "permit expired");
+  permits.insert(
+    disclose(permitId),
+    Permit {
+      holder: pk,
+      feature: disclose(feature),
+      policyId: permit.policyId,
+      policyVersion: permit.policyVersion,
+      credId: permit.credId,
+      issuedAt: permit.issuedAt,
+      expiresAt: permit.expiresAt,
+      status: PermitStatus.CONSUMED
+    }
+  );
+  seq.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// ADMIN: revoke a VALID permit (forfeits the one-time authorization).
+// ---------------------------------------------------------------------------
+
+export circuit revokePermit(permitId: Bytes<32>): [] {
+  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(permits.member(disclose(permitId)), "permit not found");
+  const permit = permits.lookup(disclose(permitId));
+  assert(permit.status == PermitStatus.VALID, "permit not valid");
+  permits.insert(
+    disclose(permitId),
+    Permit {
+      holder: permit.holder,
+      feature: permit.feature,
+      policyId: permit.policyId,
+      policyVersion: permit.policyVersion,
+      credId: permit.credId,
+      issuedAt: permit.issuedAt,
+      expiresAt: permit.expiresAt,
+      status: PermitStatus.REVOKED
+    }
+  );
+  seq.increment(1);
+}

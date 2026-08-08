@@ -1,0 +1,27 @@
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+export ledger pubX: Bytes<32>;
+export ledger pubY: Bytes<32>;
+
+witness rx(): Bytes<32>;
+witness ry(): Bytes<32>;
+witness s(): Bytes<32>;
+witness msg(): Bytes<32>;
+
+constructor(pubXParam: Bytes<32>, pubYParam: Bytes<32>) {
+  pubX = disclose(pubXParam);
+  pubY = disclose(pubYParam);
+}
+
+export circuit verify(): [] {
+  const R = constructJubjubPoint(rx() as Field, ry() as Field);
+  const P = constructJubjubPoint(pubX as Field, pubY as Field);
+  const challenge = persistentHash<Vector<6, Bytes<32>>>([pubX, pubY, rx(), ry(), pad(32, "pg:schnorr:"), msg()]);
+  const e = degradeToTransient(challenge);
+  const lhs = ecMulGenerator(s() as Field);
+  const rhs = ecAdd(R, ecMul(P, e));
+  assert(jubjubPointX(lhs) == jubjubPointX(rhs), "x mismatch");
+  assert(jubjubPointY(lhs) == jubjubPointY(rhs), "y mismatch");
+}
