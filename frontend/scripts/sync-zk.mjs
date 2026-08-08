@@ -7,6 +7,7 @@
 // Run automatically by `npm run dev` and `npm run build`.
 
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
+
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
