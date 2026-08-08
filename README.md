@@ -12,6 +12,12 @@ This project is built on the [Midnight Network](https://midnight.network/).
 > Forking this repo is discouraged, as forks are not tracked as independent projects.
 
 A Midnight smart contract example demonstrating a simple one-item bulletin board with zero-knowledge proofs on testnet. Users can post a single message at a time, and only the message author can remove it.
+## Screenshot: successful compile output 
+<img width="1215" height="458" alt="image" src="https://github.com/user-attachments/assets/ade323d2-7fdf-4b28-bbc2-863648407629" />
+
+## Screenshot: contract deployed with address shown
+<img width="1797" height="880" alt="Screenshot 2026-08-06 185944" src="https://github.com/user-attachments/assets/2c40c9cd-e259-4a33-b563-b2e83ea62fed" />
+
 
 ## Project Structure
 
