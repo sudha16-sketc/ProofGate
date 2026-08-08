@@ -110,7 +110,7 @@
       }
     },
     {
-      "name": "checkCredential",
+      "name": "attestCompliance",
       "pure": false,
       "proof": true,
       "arguments": [
@@ -123,13 +123,6 @@
               "type-name": "Bytes",
               "length": 32
             }
-          }
-        },
-        {
-          "name": "domain",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
           }
         }
       ],
@@ -370,17 +363,6 @@
       "pure": false,
       "proof": true,
       "arguments": [
-        {
-          "name": "juris",
-          "type": {
-            "type-name": "Vector",
-            "length": 8,
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          }
-        }
       ],
       "result-type": {
         "type-name": "Tuple",
@@ -898,6 +880,20 @@
           },
           {
             "name": "policyVersion",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 255
+            }
+          },
+          {
+            "name": "claimCommitment",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "attestedPolicyVersion",
             "type": {
               "type-name": "Uint",
               "maxval": 255

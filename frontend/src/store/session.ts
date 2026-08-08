@@ -483,9 +483,16 @@ export async function runDemoSetup(): Promise<boolean> {
 }
 
 export async function registerCredential(): Promise<TxResult | null> {
-  const juris = jurisdictionSlots(JURISDICTIONS);
   return runContractCall({ circuit: 'registerCredential', label: 'Register credential' }, async (_p, handle) => {
-    const tx = await handle.callTx.registerCredential(juris);
+    const tx = await handle.callTx.registerCredential();
+    return { txId: tx.public.txId };
+  });
+}
+
+export async function attestCompliance(): Promise<TxResult | null> {
+  const juris = jurisdictionSlots(JURISDICTIONS);
+  return runContractCall({ circuit: 'attestCompliance', label: 'Attest compliance' }, async (_p, handle) => {
+    const tx = await handle.callTx.attestCompliance(juris);
     return { txId: tx.public.txId };
   });
 }

@@ -8,7 +8,9 @@
  *      one-wayness) plus in-circuit Schnorr verification.
  *   2. State transitions — the full admin/user lifecycle over the impure
  *      circuits, including every meaningful rejection path (bad signature,
- *      unregistered issuer, under-age, revoked credential, possession).
+ *      unregistered issuer, under-age attestation, revoked credential,
+ *      possession). Compliance eligibility is proven by attestCompliance
+ *      (separate from registerCredential) before any permit can be requested.
  *   3. Privacy — private witnesses (subject secret key, signature, age,
  *      jurisdiction) never appear in the public ledger view or in any public
  *      proof data; they only ever appear in the private transcript that feeds
@@ -42,6 +44,7 @@ import {
   jurisdictionCommitment,
   jurisdictionSlots,
   pad32,
+  claimCommitment,
   type ProofGatePrivateState,
 } from '../src/proofgate.js';
 import { CURVE_ORDER, le32, publicKey, randScalar } from '../src/schnorr.js';
@@ -96,13 +99,23 @@ function setDefaultPolicy(pg: HeadlessProofGate, version: bigint = DEFAULT_POLIC
   );
 }
 
-/** Register the wallet's credential against the active policy. */
+/** Register the wallet's credential (identity enrollment, no policy checks). */
 function registerCred(pg: HeadlessProofGate): unknown {
-  return pg.call('registerCredential', jurisdictionSlots(JURISDICTIONS));
+  return pg.call('registerCredential');
 }
 
-/** Request a permit for the default feature expiring `ttl` seconds from now. */
+/**
+ * Prove compliance of the enrolled credential against the *active* policy
+ * (selective disclosure — no claim value is revealed on-chain).
+ */
+function attest(pg: HeadlessProofGate): unknown {
+  return pg.call('attestCompliance', jurisdictionSlots(JURISDICTIONS));
+}
+
+/** Request a permit for the default feature expiring `ttl` seconds from now.
+ *  Compliance must already be attested (the helper attests idempotently). */
 function requestPermit(pg: HeadlessProofGate, ttl = 3600n): Uint8Array {
+  attest(pg);
   const expiry = now() + ttl;
   const r = pg.call('requestPermit', pad32(FEATURE), expiry, le32(expiry));
   return r.result as Uint8Array;
@@ -280,9 +293,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pg2 = deployProofGate(DEFAULT_DOMAIN, privateState);
     setDefaultPolicy(pg2);
     // No issuer registered at all.
-    expectCallFails(pg2, 'credential issuer not registered', () =>
-      pg2.call('registerCredential', jurisdictionSlots(JURISDICTIONS)),
-    );
+    expectCallFails(pg2, 'credential issuer not registered', () => pg2.call('registerCredential'));
   });
 
   it('rejects a credential whose signature is invalid (tampered s)', () => {
@@ -290,7 +301,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgT = deployProofGate(DEFAULT_DOMAIN, tampered);
     registerDemoIssuer(pgT, ISSUER_SK);
     setDefaultPolicy(pgT);
-    expectCallFails(pgT, 'signature x mismatch', () => pgT.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    expectCallFails(pgT, 'signature x mismatch', () => pgT.call('registerCredential'));
     expect(pgT.ledger().subjects.isEmpty()).toBe(true);
   });
 
@@ -309,7 +320,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
     });
     registerDemoIssuer(attacker, ISSUER_SK);
     setDefaultPolicy(attacker);
-    expectCallFails(attacker, 'subject key mismatch', () => attacker.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    expectCallFails(attacker, 'subject key mismatch', () => attacker.call('registerCredential'));
     expect(attacker.ledger().subjects.isEmpty()).toBe(true);
   });
 
@@ -320,12 +331,10 @@ describe('state transitions — the ProofGate lifecycle', () => {
     // Register a *different* issuer (the demo one) than the one that signed.
     const demoPub = publicKey(ISSUER_SK);
     pgEvil.call('registerIssuer', demoPub.pubX, demoPub.pubY, new Uint8Array(32));
-    expectCallFails(pgEvil, 'credential issuer not registered', () =>
-      pgEvil.call('registerCredential', jurisdictionSlots(JURISDICTIONS)),
-    );
+    expectCallFails(pgEvil, 'credential issuer not registered', () => pgEvil.call('registerCredential'));
   });
 
-  it('rejects an under-age credential (age < minimumAge, signed)', () => {
+  it('registers an under-age credential but refuses compliance attestation (age < minimumAge)', () => {
     const minor = issueCredential({
       issuerSk: ISSUER_SK,
       subjectSk: randScalar(),
@@ -335,11 +344,21 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgMinor = deployProofGate(DEFAULT_DOMAIN, minor);
     registerDemoIssuer(pgMinor, ISSUER_SK);
     setDefaultPolicy(pgMinor);
-    expectCallFails(pgMinor, 'below minimum age', () => pgMinor.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
-    expect(pgMinor.ledger().subjects.isEmpty()).toBe(true);
+    // Enrollment is identity-bound, not policy-bound: registration succeeds...
+    registerCred(pgMinor);
+    expect(pgMinor.ledger().subjects.size()).toBe(1n);
+    // ...but the compliance attestation is rejected in zero knowledge.
+    expectCallFails(pgMinor, 'below minimum age', () =>
+      pgMinor.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
+    // No permit can ever be issued for a non-compliant subject.
+    const expiry = now() + 3600n;
+    expectCallFails(pgMinor, 'credential not attested compliant', () =>
+      pgMinor.call('requestPermit', pad32(FEATURE), expiry, le32(expiry)),
+    );
   });
 
-  it('rejects a credential with insufficient KYC level (signed)', () => {
+  it('refuses compliance attestation with insufficient KYC level (signed)', () => {
     const low = issueCredential({
       issuerSk: ISSUER_SK,
       subjectSk: randScalar(),
@@ -350,10 +369,14 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgLow = deployProofGate(DEFAULT_DOMAIN, low);
     registerDemoIssuer(pgLow, ISSUER_SK);
     setDefaultPolicy(pgLow);
-    expectCallFails(pgLow, 'insufficient kyc level', () => pgLow.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    registerCred(pgLow);
+    expect(pgLow.ledger().subjects.size()).toBe(1n);
+    expectCallFails(pgLow, 'insufficient kyc level', () =>
+      pgLow.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
   });
 
-  it('rejects a credential of an unsupported schema version (signed)', () => {
+  it('refuses compliance attestation for an unsupported schema version (signed)', () => {
     const oldSchema = issueCredential({
       issuerSk: ISSUER_SK,
       subjectSk: randScalar(),
@@ -364,10 +387,13 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgOld = deployProofGate(DEFAULT_DOMAIN, oldSchema);
     registerDemoIssuer(pgOld, ISSUER_SK);
     setDefaultPolicy(pgOld);
-    expectCallFails(pgOld, 'credential version not accepted', () => pgOld.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    registerCred(pgOld);
+    expectCallFails(pgOld, 'credential version not accepted', () =>
+      pgOld.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
   });
 
-  it('rejects a credential whose policy version is not the active one', () => {
+  it('refuses compliance attestation when the policy version is not the active one', () => {
     const stale = issueCredential({
       issuerSk: ISSUER_SK,
       subjectSk: randScalar(),
@@ -378,10 +404,13 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgStale = deployProofGate(DEFAULT_DOMAIN, stale);
     registerDemoIssuer(pgStale, ISSUER_SK);
     setDefaultPolicy(pgStale);
-    expectCallFails(pgStale, 'policy version mismatch', () => pgStale.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    registerCred(pgStale);
+    expectCallFails(pgStale, 'policy version mismatch', () =>
+      pgStale.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
   });
 
-  it('rejects a credential for a jurisdiction outside the policy list', () => {
+  it('refuses compliance attestation for a jurisdiction outside the policy list', () => {
     const rogue = issueCredential({
       issuerSk: ISSUER_SK,
       subjectSk: randScalar(),
@@ -391,21 +420,56 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgRogue = deployProofGate(DEFAULT_DOMAIN, rogue);
     registerDemoIssuer(pgRogue, ISSUER_SK);
     setDefaultPolicy(pgRogue);
-    expectCallFails(pgRogue, 'jurisdiction not allowed', () => pgRogue.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
-  });
+    registerCred(pgRogue);
+    expectCallFails(pgRogue, 'jurisdiction not allowed', () =>
+      pgRogue.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
+  })
 
-  it('rejects a credential whose supplied jurisdiction list does not match the policy', () => {
+  it('refuses compliance attestation when the supplied jurisdiction list does not match the policy', () => {
     const pgBad = freshDeployed().pg;
+    registerCred(pgBad);
     expectCallFails(pgBad, 'jurisdiction commitment mismatch', () =>
-      pgBad.call('registerCredential', jurisdictionSlots(['US'])),
+      pgBad.call('attestCompliance', jurisdictionSlots(['US'])),
     );
   });
 
-  it('rejects registration while no policy is active', () => {
+  it('refuses compliance attestation while no policy is active', () => {
     const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar() });
     const pgNoPolicy = deployProofGate(DEFAULT_DOMAIN, privateState);
     registerDemoIssuer(pgNoPolicy, ISSUER_SK);
-    expectCallFails(pgNoPolicy, 'no active policy', () => pgNoPolicy.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    // Registration is possible before any policy exists...
+    registerCred(pgNoPolicy);
+    expect(pgNoPolicy.ledger().subjects.size()).toBe(1n);
+    // ...but compliance cannot be proven without an active policy.
+    expectCallFails(pgNoPolicy, 'no active policy', () =>
+      pgNoPolicy.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
+  });
+
+  it('refuses compliance attestation when the claims no longer match the enrolled credential', () => {
+    registerCred(pg);
+    // Enrolled with the default age. Tamper the private state so the
+    // attestation would recompute a DIFFERENT claimCommitment than the one
+    // stored on-chain — even though the forged age claim satisfies the policy.
+    const originalAgeSlot = pg.privateState.ageSlot;
+    const originalAge = pg.privateState.age;
+    pg.privateState.ageSlot = le32(30n);
+    pg.privateState.age = 30n;
+    expectCallFails(pg, 'claims do not match enrolled credential', () =>
+      pg.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
+    pg.privateState.ageSlot = originalAgeSlot;
+    pg.privateState.age = originalAge;
+    // With the enrolled claims restored, attestation succeeds again.
+    expect(pg.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)).result).toEqual([]);
+  });
+
+  it('refuses compliance attestation for an unregistered credential', () => {
+    const { pg: pgUnreg } = freshDeployed();
+    expectCallFails(pgUnreg, 'credential not registered', () =>
+      pgUnreg.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)),
+    );
   });
 
   it('rejects a credential that is not yet valid (issued in the future)', () => {
@@ -419,7 +483,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgF = deployProofGate(DEFAULT_DOMAIN, future);
     registerDemoIssuer(pgF, ISSUER_SK);
     setDefaultPolicy(pgF);
-    expectCallFails(pgF, 'credential not yet valid', () => pgF.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    expectCallFails(pgF, 'credential not yet valid', () => pgF.call('registerCredential'));
   });
 
   it('rejects a revoked credential at registration', () => {
@@ -430,7 +494,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const credId = identifiers(privateState, DEFAULT_DOMAIN).credentialId;
     pg2.call('revokeCredential', credId);
     expect(pg2.ledger().revoked.member(credId)).toBe(true);
-    expectCallFails(pg2, 'credential revoked', () => pg2.call('registerCredential', jurisdictionSlots(JURISDICTIONS)));
+    expectCallFails(pg2, 'credential revoked', () => pg2.call('registerCredential'));
     expect(pg2.ledger().subjects.isEmpty()).toBe(true);
   });
 
@@ -453,8 +517,19 @@ describe('state transitions — the ProofGate lifecycle', () => {
     expect(hex(subject!.issuerId)).toBe(hex(pg.privateState.signedIssuerId));
     expect(subject!.kycLevel).toBe(DEFAULT_KYC_LEVEL);
     expect(subject!.policyVersion).toBe(DEFAULT_POLICY_VERSION);
+    // Enrollment stores a commitment to the signed claims, never the claims.
+    expect(hex(subject!.claimCommitment)).toBe(hex(claimCommitment(pg.privateState)));
+    // Enrolled but not yet attested → no permit can be requested yet.
+    expect(subject!.attestedPolicyVersion).toBe(0n);
 
     const permitId = requestPermit(pg);
+
+    let subject2: Subject | null = null;
+    for (const [pk, s] of pg.ledger().subjects) {
+      if (hex(pk as Uint8Array) === hex(pseudonym)) subject2 = s as Subject;
+    }
+    expect(subject2).not.toBeNull();
+    expect(subject2!.attestedPolicyVersion).toBe(DEFAULT_POLICY_VERSION);
 
     let permit: Permit | null = null;
     for (const [id, p] of pg.ledger().permits) {
@@ -515,6 +590,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
 
   it('an expired permit cannot be consumed', () => {
     registerCred(pg);
+    attest(pg);
     const expiry = now() + 600n;
     const permitId = pg.call('requestPermit', pad32(FEATURE), expiry, le32(expiry)).result as Uint8Array;
     pg.advanceTime(1200); // block time now exceeds the expiry
@@ -533,7 +609,8 @@ describe('state transitions — the ProofGate lifecycle', () => {
     const pgS = deployProofGate(DEFAULT_DOMAIN, privateState);
     registerDemoIssuer(pgS, ISSUER_SK);
     setDefaultPolicy(pgS);
-    pgS.call('registerCredential', jurisdictionSlots(JURISDICTIONS));
+    pgS.call('registerCredential');
+    attest(pgS);
     const permitId = pgS.call('requestPermit', pad32(FEATURE), now() + 300n, le32(now() + 300n)).result as Uint8Array;
     pgS.advanceTime(900); // past subject expiry, still inside permit expiry
     expectCallFails(pgS, 'credential expired', () => pgS.call('consumePermit', pad32(FEATURE), permitId));
@@ -541,6 +618,15 @@ describe('state transitions — the ProofGate lifecycle', () => {
 
   it('a user without a credential cannot request a permit', () => {
     expectCallFails(pg, 'credential not registered', () => requestPermit(pg));
+  });
+
+  it('an enrolled but not-yet-attested credential cannot request a permit', () => {
+    registerCred(pg);
+    expect(pg.ledger().subjects.size()).toBe(1n);
+    const expiry = now() + 3600n;
+    expectCallFails(pg, 'credential not attested compliant', () =>
+      pg.call('requestPermit', pad32(FEATURE), expiry, le32(expiry)),
+    );
   });
 
   it('each permit gets a fresh unlinkable id (fresh salt per request)', () => {
@@ -586,6 +672,8 @@ describe('privacy — private inputs are never exposed', () => {
     const l = pg.ledger();
     for (const [, s] of l.subjects) {
       expect(Object.keys(s as Subject).sort()).toEqual([
+        'attestedPolicyVersion',
+        'claimCommitment',
         'credId',
         'expiresAt',
         'issuerId',
@@ -615,7 +703,7 @@ describe('privacy — private inputs are never exposed', () => {
     const pg = deployProofGate(DEFAULT_DOMAIN, privateState);
     registerDemoIssuer(pg, ISSUER_SK);
     setDefaultPolicy(pg);
-    pg.call('registerCredential', jurisdictionSlots(JURISDICTIONS));
+    pg.call('registerCredential');
     requestPermit(pg);
 
     const secrets = [
@@ -646,7 +734,7 @@ describe('privacy — private inputs are never exposed', () => {
     const pg = deployProofGate(DEFAULT_DOMAIN, privateState);
     registerDemoIssuer(pg, ISSUER_SK);
     setDefaultPolicy(pg);
-    const r = pg.call('registerCredential', jurisdictionSlots(JURISDICTIONS));
+    const r = pg.call('registerCredential');
 
     const publicBytes = flattenPublicBytes(r as never);
     const secrets = [

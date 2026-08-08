@@ -1,283 +1,289 @@
-# Bulletin Board DApp
+# ProofGate
 
-This project is built on the [Midnight Network](https://midnight.network/).
+**Privacy-preserving compliance gateway on the Midnight blockchain.**
 
-[![Generic badge](https://img.shields.io/badge/Compact%20Compiler-0.30.0-1abc9c.svg)](https://shields.io/)
+ProofGate lets a user prove they are *eligible* — "I am 18+, I am in an allowed
+jurisdiction, I passed KYC, I hold an issuer-signed credential" — without
+proving *who* they are. Every action is a zero-knowledge proof; the ledger only
+ever stores hash commitments, policy parameters and status flags.
+
+[![Generic badge](https://img.shields.io/badge/Compact%20Compiler-0.31.1-1abc9c.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Compact%20Runtime-0.16.0-1abc9c.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Midnight.js-4.1.1-blue.svg)](https://shields.io/)
 [![Generic badge](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://shields.io/)
 
+ProofGate is **not** a KYC provider. KYC is performed by an external issuer,
+who signs a credential (claims about the user). The user keeps that credential
+privately in their wallet. ProofGate verifies the issuer's signature and the
+eligibility predicates **in zero knowledge**, and converts eligibility into an
+enforceable one-time permit that third-party dApps can verify and consume.
 
-> **Use this repo as a template. Do not fork it.**
->  
-> This repository is intended to be used via GitHub’s “Use this template” flow.  
-> Forking this repo is discouraged, as forks are not tracked as independent projects.
+> This repo is an application project (not a template). See
+> [PROJECT_GUIDE.md](./PROJECT_GUIDE.md) for the full architecture, workflow,
+> user flow and data-flow write-up.
 
-A Midnight smart contract example demonstrating a simple one-item bulletin board with zero-knowledge proofs on testnet. Users can post a single message at a time, and only the message author can remove it.
-## Screenshot: successful compile output 
-<img width="1215" height="458" alt="image" src="https://github.com/user-attachments/assets/ade323d2-7fdf-4b28-bbc2-863648407629" />
+---
 
-## Screenshot: contract deployed with address shown
-<img width="1797" height="880" alt="Screenshot 2026-08-06 185944" src="https://github.com/user-attachments/assets/2c40c9cd-e259-4a33-b563-b2e83ea62fed" />
+## Architecture
 
+The flow is deliberately split into three independent ZK circuits so that each
+stays small:
+
+1. **`registerCredential`** — identity enrollment. Proves the issuer signature,
+   possession of the subject key, binding of every signed field, and current
+   validity. Stores a commitment to the signed claims. **No policy evaluation.**
+2. **`attestCompliance`** — selective disclosure. Proves the *enrolled* claims
+   satisfy the *currently active* policy (age, KYC level, jurisdiction, schema +
+   policy version) without revealing them.
+3. **`requestPermit` / `consumePermit`** — cheap access control gated on the
+   attested policy version and one-time permit consumption.
+
+Registration never needs repeating when policy changes; compliance is re-proven
+per policy version; permits are the enforceable one-shot authorization.
+
+**Signature scheme** — Schnorr over Jubjub (embedded curve in BLS12-381 Fr),
+verified **in-circuit**. The signed credential is an 18-slot,
+domain-separated message covering: issuer identity, subject binding, credential
+id, age, jurisdiction, KYC level, issue/expiry time, credential + policy
+versions and the ProofGate instance domain (cross-contract replay protection).
+
+**On-chain privacy** — the ledger stores only pseudonyms
+(`persistentHash("ProofGateSubject:v1" ∥ domain ∥ pk)`), status flags, expiry
+times, KYC level and policy parameters. Raw age, jurisdiction, the credential
+signature, the subject secret key and the issuer signing key are private
+witnesses and never touch the chain.
+
+### Component map
+
+| Layer | Component | Responsibility |
+|---|---|---|
+| Contract | `contracts/proofgate.compact` | The ProofGate smart contract in Compact (12 provable + pure helper circuits) |
+| Contract (compiled) | `managed/proofgate/` | Compiler output: `contract/` (TS bindings), `keys/` (prover/verifier keys), `zkir/` (ZK circuits) |
+| Shared crypto | `src/schnorr.ts` | Schnorr-over-Jubjub credential signing/verification (off-chain mirror of the in-circuit scheme) |
+| Shared SDK | `src/proofgate.ts` | Node-side private state model, demo credentials, witness builder, jurisdiction helpers |
+| CLI | `src/cli.ts` | `info`, `set-policy`, `register-issuer`, `register-credential`, `attest-compliance`, `request-permit`, `consume-permit`, `demo` |
+| CLI | `src/deploy.ts` | Non-interactive deploy (proves via the proof server) |
+| CLI | `src/wallet.ts`, `src/network.ts` | Wallet SDK facade, network configs (`undeployed`/`preview`/`preprod`), BIP-39 wallet management |
+| Web UI | `frontend/` | React app: `PermitGate` (ZK user flow), `StateView` (read-only ledger view), `WalletConnect` (Lace) |
+| Tests | `tests/proofgate.test.ts` | 45 headless contract tests (no Docker / proof server) |
+| Tests | `tests/schnorr-prototype.test.ts` | 6 Schnorr prototype sanity tests |
+| Infra | `compose.yml` | Local devnet: `midnight-node`, `indexer-standalone`, `proof-server` |
+
+---
 
 ## Project Structure
 
 ```
-bulletin-board/
-├── contract/               # Smart contract in Compact language
-│   └── src/               # Contract source and utilities
-├── api/                   # Methods, classes and types for CLI and UI
-├── bboard-cli/            # Command-line interface
-│   └── src/               # CLI implementation
-└── bboard-ui/             # Web browser interface
-    └── src/               # Web UI implementation
+proofgate/
+├── contracts/
+│   ├── proofgate.compact        # The ProofGate smart contract (Compact)
+│   └── schnorr-proto.compact    # Minimal Schnorr prototype (experiments)
+├── managed/proofgate/           # Compiled contract (generated by `npm run compile`)
+│   ├── contract/                # TypeScript bindings
+│   ├── keys/                    # Prover/verifier keys (one pair per circuit)
+│   ├── zkir/                    # Compiled ZK circuits (.zkir / .bzkir)
+│   └── compiler/contract-info.json
+├── src/                         # CLI, deploy, wallet, network, shared crypto
+│   ├── cli.ts
+│   ├── deploy.ts
+│   ├── network.ts
+│   ├── proofgate.ts
+│   ├── schnorr.ts
+│   ├── wallet.ts
+│   └── wallet-state.ts
+├── frontend/                    # Web UI (React + Vite, Lace wallet)
+├── tests/                       # Headless contract tests (vitest)
+├── compose.yml                  # Local devnet
+├── .midnight-state.json         # Wallet + deployment records (never commit)
+├── .midnight-wallet-state/      # Wallet snapshots (never commit)
+└── midnight-level-db/           # Encrypted private-state store (never commit)
 ```
+
+---
 
 ## Prerequisites
 
-### 1. Node.js Version Check
+1. **Node.js ≥ 22** (`node --version`)
+2. **Docker** with Docker Compose (`docker --version`), for the local devnet and
+   the proof server
+3. **Lace wallet extension** (Web UI only), on the
+   [Chrome Store](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk)
+   or [Edge Store](https://microsoftedge.microsoft.com/addons/detail/lace/efeiemlfnahiidnjglmehaihacglceia)
 
-You need Node.js:
+---
 
-```bash
-node --version
-```
-
-Expected output: `v24.11.1` or higher. The repository includes an [.nvmrc](./.nvmrc) pinned to `24.11.1`.
-
-If you get a lower version: [Install Node.js LTS](https://nodejs.org/).
-
-### 2. Docker Installation
-
-The [proof server](https://docs.midnight.network/develop/tutorial/using/proof-server) runs in Docker and is required for both CLI and UI to generate zero-knowledge proofs:
+## Setup
 
 ```bash
-docker --version
+npm install          # install dependencies
+npm run compile      # compact compile contracts/proofgate.compact managed/proofgate
 ```
 
-Expected output: `Docker version X.X.X`.
+The compiler generates TypeScript bindings, ZK circuits (`.zkir`) and
+prover/verifier keys (`.prover`/`.verifier`) under `managed/proofgate/`.
 
-If Docker is not found: [Install Docker Desktop](https://docs.docker.com/desktop/). Make sure Docker Desktop is running.
+---
 
-### 3. Lace Wallet Extension (UI Only)
-
-For the web interface, install the official Lace wallet extension on [Chrome Store](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) or the [Edge Store](https://microsoftedge.microsoft.com/addons/detail/lace/efeiemlfnahiidnjglmehaihacglceia) (tested with version 1.36.0).
-
-After installing, set up the Midnight wallet:
-
-1. Create a **new wallet** — Midnight will appear as a network option
-2. Set **Network** to **Preprod**
-3. Set **Proof server** to **Local (http://localhost:6300)** — this must point to your local proof server started via Docker
-4. Click **Enter Wallet**
-5. Fund your wallet with tNIGHT tokens from the [Preprod Faucet](https://midnight-tmnight-preprod.nethermind.dev/)
-6. Go to **Tokens** in the wallet, click **Generate tDUST**, and confirm the transaction — tDUST tokens are required to pay transaction fees on preprod
-
-## Setup Instructions
-
-### Install Project Dependencies
+## Run against the local devnet
 
 ```bash
-npm install
+docker compose up -d          # starts node (:9944), indexer (:8088), proof server (:6300)
+npm run deploy -- --network undeployed
 ```
 
-This repository uses npm workspaces. Run installation once from the repository root.
+The deploy script creates/restores a wallet, waits for sync, ensures tNIGHT +
+tDUST, waits for the proof server, and deploys the contract. The contract
+address is saved to `.midnight-state.json`.
 
-### Compile the Smart Contract
-
-The Compact compiler (`compactc 0.31.0`) generates TypeScript bindings and zero-knowledge circuits from the smart contract source code:
+Then inspect and drive it with the CLI:
 
 ```bash
-cd contract
-npm run compact    # Compiles the Compact contract
-npm run build      # Copies compiled files to dist/
-cd ..
+npm run cli -- info -- --network undeployed                        # read-only ledger summary
+npm run cli -- set-policy <policyIdHex> -- --network undeployed    # admin: activate a policy
+npm run cli -- register-issuer <pkXHex> <pkYHex> -- --network undeployed   # admin: register KYC issuer
+npm run cli -- register-credential -- --network undeployed         # user: register credential (ZK)
+npm run cli -- attest-compliance -- --network undeployed           # user: prove compliance (ZK)
+npm run cli -- request-permit rwa:purchase -- --network undeployed # user: request a one-time permit
+npm run cli -- consume-permit rwa:purchase <permitIdHex> -- --network undeployed
+npm run cli -- demo -- --network undeployed                        # full happy-path walkthrough
 ```
 
-Expected output:
+The `demo` walkthrough is the full happy path — policy activation, issuer
+registration, **real `registerCredential` ZK proving** against the local proof
+server, compliance attestation, and one-time permit request + consume — then
+prints the final on-chain state.
+
+### Sample output (local devnet, 2026-08-08)
 
 ```
-> compact
-> compact compile src/bboard.compact ./src/managed/bboard
+1/6 — Admin activates a compliance policy (minAge ≥ 18, KYC ≥ 2)...
+  🔐 Proved without revealing your input (zero-knowledge).
+    ✅ txId=00ad1e8c2cf51f838d13305ca62c7f34e5e48ab443e507d95cdf6c1c989ca962c4
 
-Compiling 2 circuits:
-  circuit "post" (k=14, rows=10070)
-  circuit "takeDown" (k=14, rows=10087)
+2/6 — Admin registers a trusted KYC issuer (public: issuer id hash)...
+    ✅ txId=00f81de832417e51808cf1a5771505f5c09d4a18c2fcc00d4f7d94169bd1dc3a1c
 
-> build
-> rm -rf dist && tsc --project tsconfig.build.json && cp -Rf ./src/managed ./dist/managed && cp ./src/bboard.compact ./dist
+3/6 — User registers a credential (ZK: issuer signature, possession, binding)...
+    ✅ txId=00df4fb84c48f261d33fa747f35a50e437819d3ad5f6e2bf230211854abc8e7891
 
+...
+─── Final state ──────────────────────────────────────────────
+  activePolicyId         : 706f6c6963793a70726f6f66676174653a64656d6f3a76310000000000000000
+  minimumAge             : 18
+  requiredKycLevel       : 2
+  registered issuers     : 1
+  subjects               : 1
+    - subject f25a6139cce8c14192f786300ddcb73fb0ff1c3ff036e69132ab276381ef87c5 status=1 kycLevel=2 expiresAt=2000000000
+  permits                : 1
+    - permit d649dd8dc0d9b44a93bea1b0faef05f63b433bced6f00af68a671e7c075c47ac feature=rwa:purchase holder=f25a... status=1 expiresAt=1786211342
 ```
 
-### Build the CLI Interface
+---
+
+## Run against a public testnet (preview / preprod)
 
 ```bash
-cd bboard-cli
-npm run build
-cd ..
+docker compose up -d proof-server          # the proof server is always local
+npm run deploy -- --network preview        # auto-creates a wallet if none exists
 ```
 
-### Build the UI Interface (Optional)
+1. Start the local proof server (Docker).
+2. Run `npm run deploy -- --network preview` — on first run a wallet is created
+   and its seed/mnemonic printed; save it.
+3. Fund the wallet with tNIGHT and tDUST from the
+   [Preview Faucet](https://midnight-tmnight-preview.nethermind.dev/) or
+   [Preprod Faucet](https://midnight-tmnight-preprod.nethermind.dev/).
+4. Deploy again once funded, then use the CLI with `-- --network preview`.
 
-Only needed if you want to use the web interface:
+Reuse a wallet by setting `MIDNIGHT_WALLET_SEED` or `MIDNIGHT_WALLET_MNEMONIC`.
+
+---
+
+## Web UI
 
 ```bash
-cd bboard-ui
-npm run build
-cd ..
+npm run frontend:dev     # Vite dev server → http://127.0.0.1:8080
+npm run frontend:build   # production build
 ```
 
-## Option 1: CLI Interface
+The UI proves **in-wallet** (Lace), so no proof server is needed in the browser.
+Set `VITE_CONTRACT_ADDRESS` (and optionally `VITE_INDEXER_URL`) before running.
+`frontend/public/keys` and `frontend/public/zkir` are kept in sync with
+`managed/proofgate` so the wallet can fetch the ZK config.
 
-### Start the Proof Server
+---
 
-The CLI requires a local proof server running in Docker:
+## Circuit sizes
 
-```bash
-cd bboard-cli
-docker compose -f proof-server-local.yml up -d
-```
+Compiled with `compactc 0.31.1` (language 0.23.0, runtime 0.16.0).
+Prover keys dominate the footprint; verifier keys and `.zkir` are tiny.
 
-This uses `midnightntwrk/proof-server:8.0.3` on `http://127.0.0.1:6300`.
+| Circuit | `.prover` | `.verifier` | `.zkir` | `.bzkir` |
+|---|--:|--:|--:|--:|
+| `registerCredential` | 21.7 MB | 2.3 KB | 29.4 KB | 1.9 KB |
+| `attestCompliance` | 11.1 MB | 2.3 KB | 23.1 KB | 1.5 KB |
+| `setPolicy` | 9.9 MB | 2.1 KB | 8.9 KB | 0.5 KB |
+| `requestPermit` | 5.2 MB | 2.1 KB | 16.0 KB | 0.9 KB |
+| `registerIssuer` | 5.2 MB | 2.1 KB | 6.5 KB | 0.4 KB |
+| `setIssuerStatus` | 5.2 MB | 2.1 KB | 8.6 KB | 0.5 KB |
+| `consumePermit` | 2.8 MB | 2.1 KB | 15.2 KB | 0.8 KB |
+| `revokeCredential` | 2.8 MB | 2.1 KB | 3.4 KB | 0.2 KB |
+| `revokePermit` | 2.8 MB | 2.1 KB | 7.9 KB | 0.4 KB |
+| `rotateAdmin` | 2.8 MB | 2.1 KB | 3.2 KB | 0.2 KB |
+| `setSubjectStatus` | 2.8 MB | 2.1 KB | 8.3 KB | 0.5 KB |
+| `unrevokeCredential` | 2.8 MB | 2.1 KB | 3.2 KB | 0.2 KB |
 
-### Run the CLI
+**Totals** (`managed/proofgate/`): `keys/` ≈ 72 MB · `zkir/` ≈ 204 KB ·
+`contract/` ≈ 336 KB. The same keys are mirrored to `frontend/public/` for the
+browser.
 
-```bash
-# For preprod network
-npm run preprod-remote
+---
 
-# For preview network
-npm run preview-remote
-```
+## Version matrix
 
-### Using the CLI
+| Component | Version |
+|---|---|
+| Midnight node | 1.0.1 (devnet `compose.yml` pins 1.0.0) |
+| Indexer | 4.3.x |
+| Proof server | 8.1.0 |
+| Compact compiler | 0.31.1 |
+| Compact runtime | 0.16.0 |
+| Compact JS | 2.5.1 |
+| On-chain runtime | 3.0.0 |
+| Platform JS | 2.2.4 |
+| Wallet SDK | 1.2.0 |
+| Midnight.js | 4.1.1 |
 
-#### Create a Wallet
+**Critical:** `@midnight-ntwrk/onchain-runtime-v3` must be a **single copy**.
+Two different versions (or two nested copies of the same version) expose two
+different `StateValue` WASM classes, which breaks every contract call with
+`expected instance of StateValue`. `package.json` pins it via `overrides` to
+force one hoisted copy (see also `frontend/vite.config.ts` dedupe for the
+browser bundle).
 
-1. Choose option `1` to build a fresh wallet
-2. The system will generate a wallet address and seed
-3. **Save both the address and seed** - you'll need them later
-
-Expected output is similar to:
-
-```
-Your wallet seed is: [64-character hex string]
-Using unshielded address: mn_addr_preprod1hdvtst70zfgd8wvh7l8ppp7mcrxnjn56wc5hlxpwflz3fxdykaesrw0ln4 waiting for funds...
-```
-
-#### Fund Your Wallet
-
-Before deploying contracts, you need testnet tokens.
-
-1. Copy your wallet address from the output above
-2. Visit the [faucet](https://midnight-tmnight-preprod.nethermind.dev/)
-3. Paste your address and request funds
-4. Wait for the CLI to detect the funds (takes 2-3 minutes)
-
-Expected output after funding is similar to:
-
-```
-Your NIGHT wallet balance is: 1000000000
-```
-
-#### Deploy Your Contract
-
-1. Choose the contract deployment option
-2. Wait for deployment (takes ~30 seconds)
-3. **Save the contract address** for future use
-
-Expected output:
-
-```
-Deployed bulletin board contract at address: [contract address]
-```
-
-#### Use the Bulletin Board
-
-You can now:
-
-- **Post** a message to the bulletin board
-- **View** the current message
-- **Remove** your message (only if you posted it)
-- **Exit** when done
-
-Each action creates a real transaction on Midnight Testnet using zero-knowledge proofs generated by the proof server.
-
-## Option 2: Web UI Interface
-
-The web interface uses the same proof server and requires additional browser setup.
-
-### Start the Proof Server (if not already running)
-
-If you haven't started the proof server for the CLI, start it now:
-
-```bash
-cd bboard-cli
-docker compose -f proof-server-local.yml up -d
-cd ..
-```
-
-Verify it's running:
-
-```bash
-docker ps
-```
-
-### Start the Web Interface
-
-The UI can run against preprod or preview networks:
-
-```bash
-cd bboard-ui
-
-# For preprod network
-npm run build:start
-
-# For preview network
-npm run build:start:preview
-```
-
-The UI will be available at:
-
-- http://127.0.0.1:8080
-
-### Browser Setup
-
-1. **Open the UI URL** in a browser with Lace wallet extension installed
-2. **Set up Lace wallet** if it's your first time
-3. **Authorize the application** when Lace wallet prompts
-4. Use the bulletin board web interface
-
-## Useful Links
-
-- Get Testnet tNIGHT on [Preprod Faucet](https://midnight-tmnight-preprod.nethermind.dev/) or [Preview Faucet](https://midnight-tmnight-preview.nethermind.dev/)
-- [Midnight Documentation](https://docs.midnight.network/examples/dapps/bboard) - Complete developer guide
-- [Compatibility Matrix](https://docs.midnight.network/relnotes/support-matrix) - Current supported Midnight component versions
-- [Compact Language Guide](https://docs.midnight.network/compact/writing) - Smart contract language reference
-- Get Lace wallet on the [Chrome Store](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) or the [Edge Store](https://microsoftedge.microsoft.com/addons/detail/lace/efeiemlfnahiidnjglmehaihacglceia)
+---
 
 ## Troubleshooting
 
-| Common Issue                       | Solution                                                                                                  |
-| ---------------------------------- |-----------------------------------------------------------------------------------------------------------|
-| `npm install` fails                | Ensure you're using Node `v24.11.1` or newer. Older Node versions can install with warnings but are not the target runtime |
-| Contract compilation fails         | Ensure the Compact toolchain is installed and run `npm run compact` from `contract/`                      |
-| Network connection timeout         | CLI requires internet connection, restart if connection times out                                         |
-| Token funding takes too long       | Wait 1-2 minutes, funding is automatic in CLI                                                             |
-| "Application not authorized" error | Start proof server: `docker compose -f proof-server-local.yml up -d`                                      |
-| Lace wallet not detected           | Install Lace wallet browser extension and refresh page                                                    |
-| Docker issues                      | Ensure Docker Desktop is running, check `docker --version`                                                |
-| Port 6300 in use                   | Run `docker compose down` then restart services                                                           |
-| Dependencies won't install         | Use Node.js LTS version. For older npm versions, you may need `--legacy-peer-deps`                        |
-| Contract deployment fails          | Verify wallet has sufficient balance and network connection                                               |
+| Symptom | Cause / fix |
+|---|---|
+| `1010: Invalid Transaction: Custom error: 170` (`InvalidDustSpendProof`) on deploy | The wallet synced its DUST state from a **stale indexer** (e.g. an old devnet still holding port `:8088`) that serves a different chain than the node. Stop/remove the conflicting container and make sure the compose indexer owns `:8088` and is caught up to the node tip; wipe `midnight-level-db` + `.midnight-wallet-state/<network>` and redeploy. |
+| `expected instance of StateValue` on the first `callTx` | Two copies of `@midnight-ntwrk/onchain-runtime-v3` in the dependency tree. `npm install` after the `overrides` fix, or delete `node_modules`/`package-lock.json` and reinstall. |
+| `caller is not the admin` from `setPolicy` | The CLI's `adminSecret` does not match the deployed contract's `adminPk`. The demo derives the admin secret from the wallet seed (`deriveSecret(seed, 'admin-sk')`) — deploy and CLI must use the **same seed**. |
+| `ContractTypeError: ... have mismatched verifier keys` | The on-chain contract was deployed from an older compilation. Redeploy with the current `managed/proofgate` artifacts. |
+| `Unknown command: demo` | CLI dispatcher missing the `demo` case (fixed). Run `npm run cli -- help`. |
+| Proof generation required | The CLI always proves via the local proof server; the browser proves in-wallet. `docker compose up -d` provides it locally. |
 
-## Notes
+---
 
-- CLI and UI can run simultaneously and share the same proof server
-- Proof server (Docker) is required for both CLI and UI to generate zero-knowledge proofs
-- Contract must be compiled before building CLI or UI
-- Fund your wallet using the testnet faucet before deploying contracts
+## Useful links
 
-## Implementation Notes
+- [Midnight Documentation](https://docs.midnight.network/)
+- [Compatibility Matrix](https://docs.midnight.network/relnotes/support-matrix)
+- [Compact Language Guide](https://docs.midnight.network/compact/writing)
+- Preview faucet: https://midnight-tmnight-preview.nethermind.dev/
+- Preprod faucet: https://midnight-tmnight-preprod.nethermind.dev/
 
-- **Transaction fee configuration**  
-  The default `additionalFeeOverhead` value (`500_000_000_000_000_000n`) from `@midnight-ntwrk/testkit-js` is required on the `undeployed` network. Lower values can fail with `BalanceCheckOverspend` on the node side. On remote networks, that overhead requires too much dust, so the CLI overrides it to `1_000n`.
-- CLI private state is stored per contract address, matching the `Midnight.js 4.x` private-state provider model.
+## License
+
+Apache-2.0

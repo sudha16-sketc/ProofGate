@@ -310,12 +310,22 @@ export function PermitGate({ onContractAddressChange }: Props) {
   }, [run]);
 
   const handleRegisterCredential = useCallback(() => {
-    const juris = jurisdictionSlots(JURISDICTIONS);
     void run('Registering credential', async (_p, handle) => {
-      const tx = await handle.callTx.registerCredential(juris);
+      const tx = await handle.callTx.registerCredential();
       setMessage({
         kind: 'ok',
-        text: `Credential registered (ZK: issuer-signed, age ≥ ${DEFAULT_MIN_AGE}, KYC ≥ ${DEFAULT_KYC_LEVEL}, jurisdiction allowed). txId ${tx.public.txId}`,
+        text: `Credential registered (ZK: issuer-signed, bound to subject). txId ${tx.public.txId}`,
+      });
+    });
+  }, [run]);
+
+  const handleAttestCompliance = useCallback(() => {
+    const juris = jurisdictionSlots(JURISDICTIONS);
+    void run('Attesting compliance', async (_p, handle) => {
+      const tx = await handle.callTx.attestCompliance(juris);
+      setMessage({
+        kind: 'ok',
+        text: `Compliance attested (ZK: age ≥ ${DEFAULT_MIN_AGE}, KYC ≥ ${DEFAULT_KYC_LEVEL}, jurisdiction allowed). txId ${tx.public.txId}`,
       });
     });
   }, [run]);
@@ -331,6 +341,7 @@ export function PermitGate({ onContractAddressChange }: Props) {
         privateState!.subjectPubY,
       );
       const expiresAt = BigInt(Math.floor(Date.now() / 1000) + 3600);
+      await handle.callTx.attestCompliance(jurisdictionSlots(JURISDICTIONS));
       const tx = await handle.callTx.requestPermit(pad32(feature), expiresAt, le32(expiresAt));
       const id = await findPermitId(p, addr, pseudonym, pad32(feature));
       setPermitId(id);
@@ -404,6 +415,7 @@ export function PermitGate({ onContractAddressChange }: Props) {
           <div className="action-group">
             <h3>User flow</h3>
             <button onClick={handleRegisterCredential}>Register credential</button>
+            <button onClick={handleAttestCompliance}>Attest compliance</button>
           </div>
 
           <div className="action-group">

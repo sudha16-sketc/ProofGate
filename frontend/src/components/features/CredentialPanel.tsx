@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   notify,
+  attestCompliance,
   registerCredential,
   useSessionBusy,
   useSessionMeta,
@@ -14,16 +15,17 @@ import { Button } from '../ui/Button';
 import { DataTable } from '../ui/DataTable';
 import { CopyButton } from '../ui/CopyButton';
 import { Stepper } from '../ui/Stepper';
-import { IconCertificate, IconCheckCircle, IconLock, IconZap } from '../icons';
+import { IconCertificate, IconCheckCircle, IconLock, IconShieldCheck, IconZap } from '../icons';
 import { formatTimestamp } from '../../lib/formats';
 
 const CLAIMS = [
-  { label: 'Age ≥ policy minimum', hint: 'Proven in-circuit, exact value hidden' },
-  { label: 'KYC level ≥ policy requirement', hint: 'Proven in-circuit, level hidden' },
-  { label: 'Jurisdiction in allowed list', hint: 'Proven in-circuit, value hidden' },
-  { label: 'Issuer registered & ACTIVE', hint: 'Issuer id verified against the public registry' },
-  { label: 'Not expired / not revoked', hint: 'Checked against public state' },
+  { label: 'Issuer signature valid & issued this credential', hint: 'Jubjub signature verified in-circuit' },
   { label: 'Key possession', hint: 'You hold the subject key the issuer signed' },
+  { label: 'Signed claims bound to enrollment', hint: 'claimCommitment pins age, jurisdiction, KYC and versions' },
+  { label: 'Not expired / not revoked', hint: 'Checked against public state' },
+  { label: 'Age ≥ policy minimum', hint: 'Proven in-circuit at attestation, exact value hidden' },
+  { label: 'KYC level ≥ policy requirement', hint: 'Proven in-circuit at attestation, level hidden' },
+  { label: 'Jurisdiction in allowed list', hint: 'Proven in-circuit at attestation, value hidden' },
 ];
 
 export function CredentialPanel() {
@@ -69,14 +71,34 @@ export function CredentialPanel() {
                 <CredRow k="Issuer id" v={subject.issuerId} mono copyable />
                 <CredRow k="KYC level" v={`≥ ${subject.kycLevel.toString()}`} />
                 <CredRow k="Policy version" v={`v${subject.policyVersion.toString()}`} />
+                <CredRow
+                  k="Attested compliance"
+                  v={
+                    subject.attestedPolicyVersion === meta!.activePolicyVersion
+                      ? `v${subject.attestedPolicyVersion.toString()} (up to date)`
+                      : `v${subject.attestedPolicyVersion.toString()} (stale)`
+                  }
+                />
                 <CredRow k="Registered" v={formatTimestamp(subject.registeredAt)} />
                 <CredRow k="Expires" v={formatTimestamp(subject.expiresAt)} />
+                {subject.attestedPolicyVersion !== meta!.activePolicyVersion && (
+                  <div className="row-wrap" style={{ marginTop: 8 }}>
+                    <Button
+                      variant="primary"
+                      onClick={() => void attestCompliance()}
+                      loading={busy !== null}
+                      icon={<IconShieldCheck size={16} />}
+                    >
+                      {busy ? 'Proving…' : 'Attest compliance'}
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <>
                 <p className="muted" style={{ marginTop: 12 }}>
-                  Register your credential to prove the signed claims below satisfy the active policy. The signature is
-                  verified in-circuit — it is never written to the ledger.
+                  Register your credential to bind the issuer-signed claims to your wallet. The signature is verified
+                  in-circuit — it is never written to the ledger.
                 </p>
                 <div className="row-wrap" style={{ marginTop: 12 }}>
                   <Button
@@ -137,7 +159,7 @@ const ISSUANCE_STEPS: ReadonlyArray<{ label: string; desc: string }> = [
   { label: 'Request', desc: 'Your wallet asks the issuer to sign your claims.' },
   { label: 'Consent', desc: 'You approve exactly which claims are shared — nothing else.' },
   { label: 'Signature', desc: 'The issuer signs the claims. The signature stays in your wallet.' },
-  { label: 'ZK proof', desc: 'Your wallet proves the claims satisfy the active policy, in-circuit.' },
+  { label: 'ZK proof', desc: 'Your wallet proves it holds the signed claims, in-circuit.' },
   { label: 'Register', desc: 'The proof is submitted to the Midnight ledger.' },
   { label: 'Registered', desc: 'The credential id is public; your attributes are not.' },
 ];

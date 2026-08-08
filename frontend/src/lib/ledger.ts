@@ -36,6 +36,7 @@ export type SubjectRow = {
   issuerId: string;
   kycLevel: bigint;
   policyVersion: bigint;
+  attestedPolicyVersion: bigint;
   expiresAt: bigint;
   registeredAt: bigint;
 };
@@ -109,6 +110,7 @@ export function toLedgerView(state: { data: unknown }): LedgerView {
       issuerId: hex(s.issuerId),
       kycLevel: s.kycLevel,
       policyVersion: s.policyVersion,
+      attestedPolicyVersion: s.attestedPolicyVersion,
       expiresAt: s.expiresAt,
       registeredAt: s.registeredAt,
     })),
@@ -181,6 +183,8 @@ export type SessionMeta = {
   demoIssuerActive: boolean;
   /** True when a policy has been activated on-chain. */
   policyActive: boolean;
+  /** Version of the currently active policy (0 when none). */
+  activePolicyVersion: bigint;
   /** Credential ids currently in the on-chain revocation set. */
   revoked: string[];
 };
@@ -229,6 +233,7 @@ export function deriveMeta(
     isAdmin,
     demoIssuerActive,
     policyActive: ledger.activePolicyId !== ZEROS && ledger.activePolicyVersion > 0n,
+    activePolicyVersion: ledger.activePolicyVersion,
     revoked: ledger.revoked,
   };
 }

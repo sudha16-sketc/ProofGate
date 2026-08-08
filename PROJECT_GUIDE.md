@@ -82,11 +82,11 @@ This document covers the **architecture**, **workflow**, **user flow**, and
 | Browser | `frontend/src/hooks/useMidnight.ts` | Wallet discovery + connection state store (module-level) |
 | Browser | `frontend/src/lib/providers.ts` | Builds Midnight providers from the wallet's own `getConfiguration()` |
 | Browser | `frontend/src/lib/contract.ts` | `deployContract` / `findDeployedContract` wiring |
-| CLI | `src/cli.ts` | `info`, `set-policy`, `register-issuer`, `register-credential`, `request-permit`, `consume-permit`, `demo` |
+| CLI | `src/cli.ts` | `info`, `set-policy`, `register-issuer`, `register-credential`, `attest-compliance`, `request-permit`, `consume-permit`, `demo` |
 | CLI | `src/deploy.ts` | Non-interactive deploy (uses proof server for ZK) |
 | CLI | `src/wallet.ts` | Wallet SDK facade, network-ID configuration |
 | CLI | `src/network.ts` | Network configs (`undeployed`/`preview`/`preprod`), state file, BIP-39 wallet management |
-| Tests | `tests/proofgate.test.ts` | 42 headless contract tests (no Docker / proof server) |
+| Tests | `tests/proofgate.test.ts` | 45 headless contract tests (no Docker / proof server) |
 | Tests | `tests/schnorr-prototype.test.ts` | 6 Schnorr prototype sanity tests |
 | Infra | `compose.yml` | Local devnet: node, indexer, proof-server |
 
@@ -251,6 +251,7 @@ npm run cli -- info                                     # read-only ledger summa
 npm run cli -- set-policy <policyIdHex> [minAge] [kyc]  # admin: activate a policy
 npm run cli -- register-issuer <xHex> <yHex>            # admin: register KYC issuer
 npm run cli -- register-credential                      # user: register credential (ZK)
+npm run cli -- attest-compliance                        # user: prove compliance (ZK)
 npm run cli -- request-permit <feature> [expiry]        # user: request one-time permit
 npm run cli -- consume-permit <feature> <idHex>         # user: spend the permit once
 npm run cli -- demo                                     # full happy-path walkthrough
@@ -363,8 +364,10 @@ off-chain checks).
   `Buffer`; `frontend/src/lib/polyfills/buffer.ts` exposes it before anything
   else runs.
 - **Single runtime instance** — `@midnight-ntwrk/onchain-runtime-v3` must be
-  deduped in the bundle (`frontend/vite.config.ts`), otherwise two `StateValue`
-  classes cause `expected instance of _StateValue` at runtime.
+  deduped in the bundle (`frontend/vite.config.ts`) **and** pinned to a single
+  hoisted copy on the Node side (`package.json` `overrides` → `3.0.0`),
+  otherwise two `StateValue` classes cause `expected instance of _StateValue`
+  at runtime on the first contract call.
 - **Browser crypto** — `src/schnorr.ts` depends only on
   `@midnight-ntwrk/compact-runtime` and Web Crypto (`crypto.getRandomValues`),
   so it bundles unchanged for the browser as `frontend/src/lib/schnorr.ts`

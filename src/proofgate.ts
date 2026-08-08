@@ -160,6 +160,7 @@ export function demoPrivateState(seed: string, opts: Partial<DemoCredentialArgs>
     issuerSk: demoIssuerSk(),
     subjectSk: scalarFromBytes(deriveSecret(seed, 'subject-sk')),
     jurisdiction: 'US',
+    adminSecret: deriveSecret(seed, 'admin-sk'),
     ...opts,
   });
 }
@@ -176,6 +177,8 @@ export interface DemoCredentialArgs {
   credentialVersion?: bigint;
   policyVersion?: bigint;
   credentialId?: Uint8Array;
+  /** Admin master secret. Defaults to random; pass a seed-derived value for the deployer/admin wallet. */
+  adminSecret?: Uint8Array;
 }
 
 /**
@@ -195,6 +198,7 @@ export function issueCredential(args: DemoCredentialArgs): ProofGatePrivateState
     credentialVersion = DEFAULT_CREDENTIAL_VERSION,
     policyVersion = DEFAULT_POLICY_VERSION,
     credentialId = randomBytes32(),
+    adminSecret = randomBytes32(),
   } = args;
 
   const issuerPub = publicKey(issuerSk);
@@ -226,7 +230,7 @@ export function issueCredential(args: DemoCredentialArgs): ProofGatePrivateState
   const sig = signCredential(issuerSk, message);
 
   return {
-    adminSecret: randomBytes32(),
+    adminSecret,
     subjectSk: le32(subjectSk),
     subjectPubX: subjectPub.pubX,
     subjectPubY: subjectPub.pubY,
@@ -350,6 +354,27 @@ export function jurisdictionSlots(codes: readonly string[]): Uint8Array[] {
 export function jurisdictionCommitment(slots: Uint8Array[]): Uint8Array {
   if (slots.length !== 8) throw new Error('jurisdiction list must have exactly 8 slots');
   return persistentHash(new CompactTypeVector(8, new CompactTypeBytes(32)), slots);
+}
+
+/**
+ * Commitment to the compliance-relevant *signed* claims (age, jurisdiction,
+ * KYC level, credential version, policy version) — exactly what the contract
+ * stores in Subject.claimCommitment at registration and re-checks in
+ * attestCompliance. The raw claims never reach the chain.
+ */
+export function claimCommitment(
+  ps: Pick<
+    ProofGatePrivateState,
+    'ageSlot' | 'jurisdiction' | 'kycLevelSlot' | 'credentialVersionSlot' | 'policyVersionSlot'
+  >,
+): Uint8Array {
+  return persistentHash(new CompactTypeVector(5, new CompactTypeBytes(32)), [
+    ps.ageSlot,
+    ps.jurisdiction,
+    ps.kycLevelSlot,
+    ps.credentialVersionSlot,
+    ps.policyVersionSlot,
+  ]);
 }
 
 /** Convenience: the three public identifiers for a wallet's private state. */

@@ -63,7 +63,7 @@ const _descriptor_7 = new __compactRuntime.CompactTypeEnum(3, 1);
 
 class _Subject_0 {
   alignment() {
-    return _descriptor_7.alignment().concat(_descriptor_0.alignment().concat(_descriptor_0.alignment().concat(_descriptor_1.alignment().concat(_descriptor_1.alignment().concat(_descriptor_2.alignment().concat(_descriptor_2.alignment()))))));
+    return _descriptor_7.alignment().concat(_descriptor_0.alignment().concat(_descriptor_0.alignment().concat(_descriptor_1.alignment().concat(_descriptor_1.alignment().concat(_descriptor_0.alignment().concat(_descriptor_1.alignment().concat(_descriptor_2.alignment().concat(_descriptor_2.alignment()))))))));
   }
   fromValue(value_0) {
     return {
@@ -72,12 +72,14 @@ class _Subject_0 {
       issuerId: _descriptor_0.fromValue(value_0),
       kycLevel: _descriptor_1.fromValue(value_0),
       policyVersion: _descriptor_1.fromValue(value_0),
+      claimCommitment: _descriptor_0.fromValue(value_0),
+      attestedPolicyVersion: _descriptor_1.fromValue(value_0),
       expiresAt: _descriptor_2.fromValue(value_0),
       registeredAt: _descriptor_2.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_7.toValue(value_0.status).concat(_descriptor_0.toValue(value_0.credId).concat(_descriptor_0.toValue(value_0.issuerId).concat(_descriptor_1.toValue(value_0.kycLevel).concat(_descriptor_1.toValue(value_0.policyVersion).concat(_descriptor_2.toValue(value_0.expiresAt).concat(_descriptor_2.toValue(value_0.registeredAt)))))));
+    return _descriptor_7.toValue(value_0.status).concat(_descriptor_0.toValue(value_0.credId).concat(_descriptor_0.toValue(value_0.issuerId).concat(_descriptor_1.toValue(value_0.kycLevel).concat(_descriptor_1.toValue(value_0.policyVersion).concat(_descriptor_0.toValue(value_0.claimCommitment).concat(_descriptor_1.toValue(value_0.attestedPolicyVersion).concat(_descriptor_2.toValue(value_0.expiresAt).concat(_descriptor_2.toValue(value_0.registeredAt)))))))));
   }
 }
 
@@ -114,13 +116,15 @@ const _descriptor_13 = __compactRuntime.CompactTypeJubjubPoint;
 
 const _descriptor_14 = new __compactRuntime.CompactTypeVector(7, _descriptor_0);
 
-const _descriptor_15 = new __compactRuntime.CompactTypeVector(4, _descriptor_0);
+const _descriptor_15 = new __compactRuntime.CompactTypeVector(5, _descriptor_0);
 
-const _descriptor_16 = new __compactRuntime.CompactTypeVector(18, _descriptor_0);
+const _descriptor_16 = new __compactRuntime.CompactTypeVector(4, _descriptor_0);
 
-const _descriptor_17 = new __compactRuntime.CompactTypeVector(2, _descriptor_0);
+const _descriptor_17 = new __compactRuntime.CompactTypeVector(18, _descriptor_0);
 
-const _descriptor_18 = new __compactRuntime.CompactTypeVector(3, _descriptor_0);
+const _descriptor_18 = new __compactRuntime.CompactTypeVector(2, _descriptor_0);
+
+const _descriptor_19 = new __compactRuntime.CompactTypeVector(3, _descriptor_0);
 
 class _Either_0 {
   alignment() {
@@ -138,9 +142,9 @@ class _Either_0 {
   }
 }
 
-const _descriptor_19 = new _Either_0();
+const _descriptor_20 = new _Either_0();
 
-const _descriptor_20 = new __compactRuntime.CompactTypeUnsignedInteger(340282366920938463463374607431768211455n, 16);
+const _descriptor_21 = new __compactRuntime.CompactTypeUnsignedInteger(340282366920938463463374607431768211455n, 16);
 
 class _ContractAddress_0 {
   alignment() {
@@ -156,7 +160,7 @@ class _ContractAddress_0 {
   }
 }
 
-const _descriptor_21 = new _ContractAddress_0();
+const _descriptor_22 = new _ContractAddress_0();
 
 export class Contract {
   witnesses;
@@ -266,14 +270,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('checkSignature',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 214 char 1',
+                                     'proofgate.compact line 240 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(domain_0.buffer instanceof ArrayBuffer && domain_0.BYTES_PER_ELEMENT === 1 && domain_0.length === 32)) {
           __compactRuntime.typeError('checkSignature',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 214 char 1',
+                                     'proofgate.compact line 240 char 1',
                                      'Bytes<32>',
                                      domain_0)
         }
@@ -301,7 +305,7 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('checkPossession',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 229 char 1',
+                                     'proofgate.compact line 255 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
@@ -316,48 +320,39 @@ export class Contract {
         partialProofData.output = { value: [], alignment: [] };
         return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
       },
-      checkCredential: (...args_1) => {
-        if (args_1.length !== 3) {
-          throw new __compactRuntime.CompactError(`checkCredential: expected 3 arguments (as invoked from Typescript), received ${args_1.length}`);
+      attestCompliance: (...args_1) => {
+        if (args_1.length !== 2) {
+          throw new __compactRuntime.CompactError(`attestCompliance: expected 2 arguments (as invoked from Typescript), received ${args_1.length}`);
         }
         const contextOrig_0 = args_1[0];
         const juris_0 = args_1[1];
-        const domain_0 = args_1[2];
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
-          __compactRuntime.typeError('checkCredential',
+          __compactRuntime.typeError('attestCompliance',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 240 char 1',
+                                     'proofgate.compact line 285 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(Array.isArray(juris_0) && juris_0.length === 8 && juris_0.every((t) => t.buffer instanceof ArrayBuffer && t.BYTES_PER_ELEMENT === 1 && t.length === 32))) {
-          __compactRuntime.typeError('checkCredential',
+          __compactRuntime.typeError('attestCompliance',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 240 char 1',
+                                     'proofgate.compact line 285 char 1',
                                      'Vector<8, Bytes<32>>',
                                      juris_0)
-        }
-        if (!(domain_0.buffer instanceof ArrayBuffer && domain_0.BYTES_PER_ELEMENT === 1 && domain_0.length === 32)) {
-          __compactRuntime.typeError('checkCredential',
-                                     'argument 2 (argument 3 as invoked from Typescript)',
-                                     'proofgate.compact line 240 char 1',
-                                     'Bytes<32>',
-                                     domain_0)
         }
         const context = { ...contextOrig_0, gasCost: __compactRuntime.emptyRunningCost() };
         const partialProofData = {
           input: {
-            value: _descriptor_11.toValue(juris_0).concat(_descriptor_0.toValue(domain_0)),
-            alignment: _descriptor_11.alignment().concat(_descriptor_0.alignment())
+            value: _descriptor_11.toValue(juris_0),
+            alignment: _descriptor_11.alignment()
           },
           output: undefined,
           publicTranscript: [],
           privateTranscriptOutputs: []
         };
-        const result_0 = this._checkCredential_0(context,
-                                                 partialProofData,
-                                                 juris_0,
-                                                 domain_0);
+        const result_0 = this._attestCompliance_0(context,
+                                                  partialProofData,
+                                                  juris_0);
         partialProofData.output = { value: [], alignment: [] };
         return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
       },
@@ -370,14 +365,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('rotateAdmin',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 286 char 1',
+                                     'proofgate.compact line 341 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(newAdminPk_0.buffer instanceof ArrayBuffer && newAdminPk_0.BYTES_PER_ELEMENT === 1 && newAdminPk_0.length === 32)) {
           __compactRuntime.typeError('rotateAdmin',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 286 char 1',
+                                     'proofgate.compact line 341 char 1',
                                      'Bytes<32>',
                                      newAdminPk_0)
         }
@@ -412,56 +407,56 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(policyIdParam_0.buffer instanceof ArrayBuffer && policyIdParam_0.BYTES_PER_ELEMENT === 1 && policyIdParam_0.length === 32)) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'Bytes<32>',
                                      policyIdParam_0)
         }
         if (!(typeof(versionParam_0) === 'bigint' && versionParam_0 >= 0n && versionParam_0 <= 255n)) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'Uint<0..256>',
                                      versionParam_0)
         }
         if (!(typeof(minimumAgeParam_0) === 'bigint' && minimumAgeParam_0 >= 0n && minimumAgeParam_0 <= 255n)) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'Uint<0..256>',
                                      minimumAgeParam_0)
         }
         if (!(typeof(requiredKycLevelParam_0) === 'bigint' && requiredKycLevelParam_0 >= 0n && requiredKycLevelParam_0 <= 255n)) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 4 (argument 5 as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'Uint<0..256>',
                                      requiredKycLevelParam_0)
         }
         if (!(typeof(requiredCredentialVersionParam_0) === 'bigint' && requiredCredentialVersionParam_0 >= 0n && requiredCredentialVersionParam_0 <= 255n)) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 5 (argument 6 as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'Uint<0..256>',
                                      requiredCredentialVersionParam_0)
         }
         if (!(jurisdictionCommitmentParam_0.buffer instanceof ArrayBuffer && jurisdictionCommitmentParam_0.BYTES_PER_ELEMENT === 1 && jurisdictionCommitmentParam_0.length === 32)) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 6 (argument 7 as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'Bytes<32>',
                                      jurisdictionCommitmentParam_0)
         }
         if (!(Array.isArray(jurisdictionsParam_0) && jurisdictionsParam_0.length === 8 && jurisdictionsParam_0.every((t) => t.buffer instanceof ArrayBuffer && t.BYTES_PER_ELEMENT === 1 && t.length === 32))) {
           __compactRuntime.typeError('setPolicy',
                                      'argument 7 (argument 8 as invoked from Typescript)',
-                                     'proofgate.compact line 296 char 1',
+                                     'proofgate.compact line 351 char 1',
                                      'Vector<8, Bytes<32>>',
                                      jurisdictionsParam_0)
         }
@@ -498,28 +493,28 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('registerIssuer',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 324 char 1',
+                                     'proofgate.compact line 379 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(issuerPkXParam_0.buffer instanceof ArrayBuffer && issuerPkXParam_0.BYTES_PER_ELEMENT === 1 && issuerPkXParam_0.length === 32)) {
           __compactRuntime.typeError('registerIssuer',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 324 char 1',
+                                     'proofgate.compact line 379 char 1',
                                      'Bytes<32>',
                                      issuerPkXParam_0)
         }
         if (!(issuerPkYParam_0.buffer instanceof ArrayBuffer && issuerPkYParam_0.BYTES_PER_ELEMENT === 1 && issuerPkYParam_0.length === 32)) {
           __compactRuntime.typeError('registerIssuer',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'proofgate.compact line 324 char 1',
+                                     'proofgate.compact line 379 char 1',
                                      'Bytes<32>',
                                      issuerPkYParam_0)
         }
         if (!(metadataHash_0.buffer instanceof ArrayBuffer && metadataHash_0.BYTES_PER_ELEMENT === 1 && metadataHash_0.length === 32)) {
           __compactRuntime.typeError('registerIssuer',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'proofgate.compact line 324 char 1',
+                                     'proofgate.compact line 379 char 1',
                                      'Bytes<32>',
                                      metadataHash_0)
         }
@@ -552,28 +547,28 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('setIssuerStatus',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 339 char 1',
+                                     'proofgate.compact line 394 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(issuerPkXParam_0.buffer instanceof ArrayBuffer && issuerPkXParam_0.BYTES_PER_ELEMENT === 1 && issuerPkXParam_0.length === 32)) {
           __compactRuntime.typeError('setIssuerStatus',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 339 char 1',
+                                     'proofgate.compact line 394 char 1',
                                      'Bytes<32>',
                                      issuerPkXParam_0)
         }
         if (!(issuerPkYParam_0.buffer instanceof ArrayBuffer && issuerPkYParam_0.BYTES_PER_ELEMENT === 1 && issuerPkYParam_0.length === 32)) {
           __compactRuntime.typeError('setIssuerStatus',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'proofgate.compact line 339 char 1',
+                                     'proofgate.compact line 394 char 1',
                                      'Bytes<32>',
                                      issuerPkYParam_0)
         }
         if (!(typeof(status_0) === 'number' && status_0 >= 0 && status_0 <= 3)) {
           __compactRuntime.typeError('setIssuerStatus',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'proofgate.compact line 339 char 1',
+                                     'proofgate.compact line 394 char 1',
                                      'Enum<IssuerStatus, NONE, ACTIVE, SUSPENDED, REVOKED>',
                                      status_0)
         }
@@ -604,14 +599,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('revokeCredential',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 363 char 1',
+                                     'proofgate.compact line 418 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(credIdParam_0.buffer instanceof ArrayBuffer && credIdParam_0.BYTES_PER_ELEMENT === 1 && credIdParam_0.length === 32)) {
           __compactRuntime.typeError('revokeCredential',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 363 char 1',
+                                     'proofgate.compact line 418 char 1',
                                      'Bytes<32>',
                                      credIdParam_0)
         }
@@ -640,14 +635,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('unrevokeCredential',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 369 char 1',
+                                     'proofgate.compact line 424 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(credIdParam_0.buffer instanceof ArrayBuffer && credIdParam_0.BYTES_PER_ELEMENT === 1 && credIdParam_0.length === 32)) {
           __compactRuntime.typeError('unrevokeCredential',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 369 char 1',
+                                     'proofgate.compact line 424 char 1',
                                      'Bytes<32>',
                                      credIdParam_0)
         }
@@ -677,21 +672,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('setSubjectStatus',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 379 char 1',
+                                     'proofgate.compact line 434 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(subjectPk_0.buffer instanceof ArrayBuffer && subjectPk_0.BYTES_PER_ELEMENT === 1 && subjectPk_0.length === 32)) {
           __compactRuntime.typeError('setSubjectStatus',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 379 char 1',
+                                     'proofgate.compact line 434 char 1',
                                      'Bytes<32>',
                                      subjectPk_0)
         }
         if (!(typeof(status_0) === 'number' && status_0 >= 0 && status_0 <= 3)) {
           __compactRuntime.typeError('setSubjectStatus',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'proofgate.compact line 379 char 1',
+                                     'proofgate.compact line 434 char 1',
                                      'Enum<SubjectStatus, NONE, ACTIVE, SUSPENDED, REVOKED>',
                                      status_0)
         }
@@ -713,38 +708,25 @@ export class Contract {
         return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
       },
       registerCredential: (...args_1) => {
-        if (args_1.length !== 2) {
-          throw new __compactRuntime.CompactError(`registerCredential: expected 2 arguments (as invoked from Typescript), received ${args_1.length}`);
+        if (args_1.length !== 1) {
+          throw new __compactRuntime.CompactError(`registerCredential: expected 1 argument (as invoked from Typescript), received ${args_1.length}`);
         }
         const contextOrig_0 = args_1[0];
-        const juris_0 = args_1[1];
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('registerCredential',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 410 char 1',
+                                     'proofgate.compact line 470 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
-        if (!(Array.isArray(juris_0) && juris_0.length === 8 && juris_0.every((t) => t.buffer instanceof ArrayBuffer && t.BYTES_PER_ELEMENT === 1 && t.length === 32))) {
-          __compactRuntime.typeError('registerCredential',
-                                     'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 410 char 1',
-                                     'Vector<8, Bytes<32>>',
-                                     juris_0)
-        }
         const context = { ...contextOrig_0, gasCost: __compactRuntime.emptyRunningCost() };
         const partialProofData = {
-          input: {
-            value: _descriptor_11.toValue(juris_0),
-            alignment: _descriptor_11.alignment()
-          },
+          input: { value: [], alignment: [] },
           output: undefined,
           publicTranscript: [],
           privateTranscriptOutputs: []
         };
-        const result_0 = this._registerCredential_0(context,
-                                                    partialProofData,
-                                                    juris_0);
+        const result_0 = this._registerCredential_0(context, partialProofData);
         partialProofData.output = { value: [], alignment: [] };
         return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
       },
@@ -759,28 +741,28 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('requestPermit',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 441 char 1',
+                                     'proofgate.compact line 522 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(feature_0.buffer instanceof ArrayBuffer && feature_0.BYTES_PER_ELEMENT === 1 && feature_0.length === 32)) {
           __compactRuntime.typeError('requestPermit',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 441 char 1',
+                                     'proofgate.compact line 522 char 1',
                                      'Bytes<32>',
                                      feature_0)
         }
         if (!(typeof(expiresAt_0) === 'bigint' && expiresAt_0 >= 0n && expiresAt_0 <= 18446744073709551615n)) {
           __compactRuntime.typeError('requestPermit',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'proofgate.compact line 441 char 1',
+                                     'proofgate.compact line 522 char 1',
                                      'Uint<0..18446744073709551616>',
                                      expiresAt_0)
         }
         if (!(expiresAtSlot_0.buffer instanceof ArrayBuffer && expiresAtSlot_0.BYTES_PER_ELEMENT === 1 && expiresAtSlot_0.length === 32)) {
           __compactRuntime.typeError('requestPermit',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'proofgate.compact line 441 char 1',
+                                     'proofgate.compact line 522 char 1',
                                      'Bytes<32>',
                                      expiresAtSlot_0)
         }
@@ -812,21 +794,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('consumePermit',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 483 char 1',
+                                     'proofgate.compact line 564 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(feature_0.buffer instanceof ArrayBuffer && feature_0.BYTES_PER_ELEMENT === 1 && feature_0.length === 32)) {
           __compactRuntime.typeError('consumePermit',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 483 char 1',
+                                     'proofgate.compact line 564 char 1',
                                      'Bytes<32>',
                                      feature_0)
         }
         if (!(permitId_0.buffer instanceof ArrayBuffer && permitId_0.BYTES_PER_ELEMENT === 1 && permitId_0.length === 32)) {
           __compactRuntime.typeError('consumePermit',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'proofgate.compact line 483 char 1',
+                                     'proofgate.compact line 564 char 1',
                                      'Bytes<32>',
                                      permitId_0)
         }
@@ -856,14 +838,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('revokePermit',
                                      'argument 1 (as invoked from Typescript)',
-                                     'proofgate.compact line 516 char 1',
+                                     'proofgate.compact line 597 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(permitId_0.buffer instanceof ArrayBuffer && permitId_0.BYTES_PER_ELEMENT === 1 && permitId_0.length === 32)) {
           __compactRuntime.typeError('revokePermit',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'proofgate.compact line 516 char 1',
+                                     'proofgate.compact line 597 char 1',
                                      'Bytes<32>',
                                      permitId_0)
         }
@@ -887,7 +869,7 @@ export class Contract {
     this.impureCircuits = {
       checkSignature: this.circuits.checkSignature,
       checkPossession: this.circuits.checkPossession,
-      checkCredential: this.circuits.checkCredential,
+      attestCompliance: this.circuits.attestCompliance,
       rotateAdmin: this.circuits.rotateAdmin,
       setPolicy: this.circuits.setPolicy,
       registerIssuer: this.circuits.registerIssuer,
@@ -901,7 +883,7 @@ export class Contract {
       revokePermit: this.circuits.revokePermit
     };
     this.provableCircuits = {
-      checkCredential: this.circuits.checkCredential,
+      attestCompliance: this.circuits.attestCompliance,
       rotateAdmin: this.circuits.rotateAdmin,
       setPolicy: this.circuits.setPolicy,
       registerIssuer: this.circuits.registerIssuer,
@@ -937,14 +919,14 @@ export class Contract {
     if (!(contractDomainParam_0.buffer instanceof ArrayBuffer && contractDomainParam_0.BYTES_PER_ELEMENT === 1 && contractDomainParam_0.length === 32)) {
       __compactRuntime.typeError('Contract state constructor',
                                  'argument 1 (argument 2 as invoked from Typescript)',
-                                 'proofgate.compact line 160 char 1',
+                                 'proofgate.compact line 186 char 1',
                                  'Bytes<32>',
                                  contractDomainParam_0)
     }
     if (!(adminPkParam_0.buffer instanceof ArrayBuffer && adminPkParam_0.BYTES_PER_ELEMENT === 1 && adminPkParam_0.length === 32)) {
       __compactRuntime.typeError('Contract state constructor',
                                  'argument 2 (argument 3 as invoked from Typescript)',
-                                 'proofgate.compact line 160 char 1',
+                                 'proofgate.compact line 186 char 1',
                                  'Bytes<32>',
                                  adminPkParam_0)
     }
@@ -964,7 +946,7 @@ export class Contract {
     stateValue_0 = stateValue_0.arrayPush(__compactRuntime.StateValue.newNull());
     stateValue_0 = stateValue_0.arrayPush(__compactRuntime.StateValue.newNull());
     state_0.data = new __compactRuntime.ChargedState(stateValue_0);
-    state_0.setOperation('checkCredential', new __compactRuntime.ContractOperation());
+    state_0.setOperation('attestCompliance', new __compactRuntime.ContractOperation());
     state_0.setOperation('rotateAdmin', new __compactRuntime.ContractOperation());
     state_0.setOperation('setPolicy', new __compactRuntime.ContractOperation());
     state_0.setOperation('registerIssuer', new __compactRuntime.ContractOperation());
@@ -1145,19 +1127,19 @@ export class Contract {
     }
   }
   _persistentHash_0(value_0) {
-    const result_0 = __compactRuntime.persistentHash(_descriptor_17, value_0);
-    return result_0;
-  }
-  _persistentHash_1(value_0) {
     const result_0 = __compactRuntime.persistentHash(_descriptor_18, value_0);
     return result_0;
   }
+  _persistentHash_1(value_0) {
+    const result_0 = __compactRuntime.persistentHash(_descriptor_19, value_0);
+    return result_0;
+  }
   _persistentHash_2(value_0) {
-    const result_0 = __compactRuntime.persistentHash(_descriptor_15, value_0);
+    const result_0 = __compactRuntime.persistentHash(_descriptor_16, value_0);
     return result_0;
   }
   _persistentHash_3(value_0) {
-    const result_0 = __compactRuntime.persistentHash(_descriptor_16, value_0);
+    const result_0 = __compactRuntime.persistentHash(_descriptor_17, value_0);
     return result_0;
   }
   _persistentHash_4(value_0) {
@@ -1165,6 +1147,10 @@ export class Contract {
     return result_0;
   }
   _persistentHash_5(value_0) {
+    const result_0 = __compactRuntime.persistentHash(_descriptor_15, value_0);
+    return result_0;
+  }
+  _persistentHash_6(value_0) {
     const result_0 = __compactRuntime.persistentHash(_descriptor_14, value_0);
     return result_0;
   }
@@ -1203,7 +1189,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('adminSecret',
                                  'return value',
-                                 'proofgate.compact line 127 char 1',
+                                 'proofgate.compact line 153 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1220,7 +1206,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('subjectSk',
                                  'return value',
-                                 'proofgate.compact line 129 char 1',
+                                 'proofgate.compact line 155 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1237,7 +1223,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('subjectPkX',
                                  'return value',
-                                 'proofgate.compact line 130 char 1',
+                                 'proofgate.compact line 156 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1254,7 +1240,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('subjectPkY',
                                  'return value',
-                                 'proofgate.compact line 131 char 1',
+                                 'proofgate.compact line 157 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1271,7 +1257,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('issuerPkX',
                                  'return value',
-                                 'proofgate.compact line 134 char 1',
+                                 'proofgate.compact line 160 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1288,7 +1274,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('issuerPkY',
                                  'return value',
-                                 'proofgate.compact line 135 char 1',
+                                 'proofgate.compact line 161 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1305,7 +1291,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('signedIssuerId',
                                  'return value',
-                                 'proofgate.compact line 137 char 1',
+                                 'proofgate.compact line 163 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1322,7 +1308,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('subjectCommitment',
                                  'return value',
-                                 'proofgate.compact line 138 char 1',
+                                 'proofgate.compact line 164 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1339,7 +1325,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('credentialId',
                                  'return value',
-                                 'proofgate.compact line 139 char 1',
+                                 'proofgate.compact line 165 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1356,7 +1342,7 @@ export class Contract {
     if (!(typeof(result_0) === 'bigint' && result_0 >= 0n && result_0 <= 255n)) {
       __compactRuntime.typeError('credentialVersion',
                                  'return value',
-                                 'proofgate.compact line 140 char 1',
+                                 'proofgate.compact line 166 char 1',
                                  'Uint<0..256>',
                                  result_0)
     }
@@ -1373,7 +1359,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('credentialVersionSlot',
                                  'return value',
-                                 'proofgate.compact line 141 char 1',
+                                 'proofgate.compact line 167 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1390,7 +1376,7 @@ export class Contract {
     if (!(typeof(result_0) === 'bigint' && result_0 >= 0n && result_0 <= 255n)) {
       __compactRuntime.typeError('age',
                                  'return value',
-                                 'proofgate.compact line 142 char 1',
+                                 'proofgate.compact line 168 char 1',
                                  'Uint<0..256>',
                                  result_0)
     }
@@ -1407,7 +1393,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('ageSlot',
                                  'return value',
-                                 'proofgate.compact line 143 char 1',
+                                 'proofgate.compact line 169 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1424,7 +1410,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('jurisdiction',
                                  'return value',
-                                 'proofgate.compact line 144 char 1',
+                                 'proofgate.compact line 170 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1441,7 +1427,7 @@ export class Contract {
     if (!(typeof(result_0) === 'bigint' && result_0 >= 0n && result_0 <= 255n)) {
       __compactRuntime.typeError('kycLevel',
                                  'return value',
-                                 'proofgate.compact line 145 char 1',
+                                 'proofgate.compact line 171 char 1',
                                  'Uint<0..256>',
                                  result_0)
     }
@@ -1458,7 +1444,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('kycLevelSlot',
                                  'return value',
-                                 'proofgate.compact line 146 char 1',
+                                 'proofgate.compact line 172 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1475,7 +1461,7 @@ export class Contract {
     if (!(typeof(result_0) === 'bigint' && result_0 >= 0n && result_0 <= 18446744073709551615n)) {
       __compactRuntime.typeError('issuedAt',
                                  'return value',
-                                 'proofgate.compact line 147 char 1',
+                                 'proofgate.compact line 173 char 1',
                                  'Uint<0..18446744073709551616>',
                                  result_0)
     }
@@ -1492,7 +1478,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('issuedAtSlot',
                                  'return value',
-                                 'proofgate.compact line 148 char 1',
+                                 'proofgate.compact line 174 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1509,7 +1495,7 @@ export class Contract {
     if (!(typeof(result_0) === 'bigint' && result_0 >= 0n && result_0 <= 18446744073709551615n)) {
       __compactRuntime.typeError('expiresAt',
                                  'return value',
-                                 'proofgate.compact line 149 char 1',
+                                 'proofgate.compact line 175 char 1',
                                  'Uint<0..18446744073709551616>',
                                  result_0)
     }
@@ -1526,7 +1512,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('expiresAtSlot',
                                  'return value',
-                                 'proofgate.compact line 150 char 1',
+                                 'proofgate.compact line 176 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1543,7 +1529,7 @@ export class Contract {
     if (!(typeof(result_0) === 'bigint' && result_0 >= 0n && result_0 <= 255n)) {
       __compactRuntime.typeError('policyVersion',
                                  'return value',
-                                 'proofgate.compact line 151 char 1',
+                                 'proofgate.compact line 177 char 1',
                                  'Uint<0..256>',
                                  result_0)
     }
@@ -1560,7 +1546,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('policyVersionSlot',
                                  'return value',
-                                 'proofgate.compact line 152 char 1',
+                                 'proofgate.compact line 178 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1577,7 +1563,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('rx',
                                  'return value',
-                                 'proofgate.compact line 154 char 1',
+                                 'proofgate.compact line 180 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1594,7 +1580,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('ry',
                                  'return value',
-                                 'proofgate.compact line 155 char 1',
+                                 'proofgate.compact line 181 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1611,7 +1597,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('s',
                                  'return value',
-                                 'proofgate.compact line 156 char 1',
+                                 'proofgate.compact line 182 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1628,7 +1614,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('permitSalt',
                                  'return value',
-                                 'proofgate.compact line 158 char 1',
+                                 'proofgate.compact line 184 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -1686,26 +1672,26 @@ export class Contract {
     const R_0 = this._constructJubjubPoint_0(__compactRuntime.convertBytesToField(32,
                                                                                   this._rx_0(context,
                                                                                              partialProofData),
-                                                                                  'proofgate.compact line 215 char 34'),
+                                                                                  'proofgate.compact line 241 char 34'),
                                              __compactRuntime.convertBytesToField(32,
                                                                                   this._ry_0(context,
                                                                                              partialProofData),
-                                                                                  'proofgate.compact line 215 char 49'));
+                                                                                  'proofgate.compact line 241 char 49'));
     const P_0 = this._constructJubjubPoint_0(__compactRuntime.convertBytesToField(32,
                                                                                   this._issuerPkX_0(context,
                                                                                                     partialProofData),
-                                                                                  'proofgate.compact line 216 char 34'),
+                                                                                  'proofgate.compact line 242 char 34'),
                                              __compactRuntime.convertBytesToField(32,
                                                                                   this._issuerPkY_0(context,
                                                                                                     partialProofData),
-                                                                                  'proofgate.compact line 216 char 56'));
+                                                                                  'proofgate.compact line 242 char 56'));
     const e_0 = this._degradeToTransient_0(this._schnorrChallenge_0(context,
                                                                     partialProofData,
                                                                     domain_0));
     const lhs_0 = this._ecMulGenerator_0(__compactRuntime.convertBytesToField(32,
                                                                               this._s_0(context,
                                                                                         partialProofData),
-                                                                              'proofgate.compact line 218 char 30'));
+                                                                              'proofgate.compact line 244 char 30'));
     const rhs_0 = this._ecAdd_0(R_0, this._ecMul_0(P_0, e_0));
     __compactRuntime.assert(this._jubjubPointX_0(lhs_0)
                             ===
@@ -1721,81 +1707,133 @@ export class Contract {
     __compactRuntime.assert(this._equal_0(this._ecMulGenerator_0(__compactRuntime.convertBytesToField(32,
                                                                                                       this._subjectSk_0(context,
                                                                                                                         partialProofData),
-                                                                                                      'proofgate.compact line 231 char 20')),
+                                                                                                      'proofgate.compact line 257 char 20')),
                                           this._constructJubjubPoint_0(__compactRuntime.convertBytesToField(32,
                                                                                                             this._subjectPkX_0(context,
                                                                                                                                partialProofData),
-                                                                                                            'proofgate.compact line 231 char 66'),
+                                                                                                            'proofgate.compact line 257 char 66'),
                                                                        __compactRuntime.convertBytesToField(32,
                                                                                                             this._subjectPkY_0(context,
                                                                                                                                partialProofData),
-                                                                                                            'proofgate.compact line 231 char 89'))),
+                                                                                                            'proofgate.compact line 257 char 89'))),
                             'subject key mismatch');
     return [];
   }
-  _checkCredential_0(context, partialProofData, juris_0, domain_0) {
+  _signedClaimCommitment_0(context, partialProofData) {
+    return this._persistentHash_5([this._ageSlot_0(context, partialProofData),
+                                   this._jurisdiction_0(context,
+                                                        partialProofData),
+                                   this._kycLevelSlot_0(context,
+                                                        partialProofData),
+                                   this._credentialVersionSlot_0(context,
+                                                                 partialProofData),
+                                   this._policyVersionSlot_0(context,
+                                                             partialProofData)]);
+  }
+  _attestCompliance_0(context, partialProofData, juris_0) {
+    const pk_0 = this._subjectKey_0(_descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                              partialProofData,
+                                                                                              [
+                                                                                               { dup: { n: 0 } },
+                                                                                               { idx: { cached: false,
+                                                                                                        pushPath: false,
+                                                                                                        path: [
+                                                                                                               { tag: 'value',
+                                                                                                                 value: { value: _descriptor_1.toValue(0n),
+                                                                                                                          alignment: _descriptor_1.alignment() } }] } },
+                                                                                               { popeq: { cached: false,
+                                                                                                          result: undefined } }]).value),
+                                    this._subjectPkX_0(context, partialProofData),
+                                    this._subjectPkY_0(context, partialProofData));
+    __compactRuntime.assert(_descriptor_5.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                      partialProofData,
+                                                                                      [
+                                                                                       { dup: { n: 0 } },
+                                                                                       { idx: { cached: false,
+                                                                                                pushPath: false,
+                                                                                                path: [
+                                                                                                       { tag: 'value',
+                                                                                                         value: { value: _descriptor_1.toValue(9n),
+                                                                                                                  alignment: _descriptor_1.alignment() } }] } },
+                                                                                       { push: { storage: false,
+                                                                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(pk_0),
+                                                                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
+                                                                                       'member',
+                                                                                       { popeq: { cached: true,
+                                                                                                  result: undefined } }]).value),
+                            'credential not registered');
+    const subject_0 = _descriptor_8.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                partialProofData,
+                                                                                [
+                                                                                 { dup: { n: 0 } },
+                                                                                 { idx: { cached: false,
+                                                                                          pushPath: false,
+                                                                                          path: [
+                                                                                                 { tag: 'value',
+                                                                                                   value: { value: _descriptor_1.toValue(9n),
+                                                                                                            alignment: _descriptor_1.alignment() } }] } },
+                                                                                 { idx: { cached: false,
+                                                                                          pushPath: false,
+                                                                                          path: [
+                                                                                                 { tag: 'value',
+                                                                                                   value: { value: _descriptor_0.toValue(pk_0),
+                                                                                                            alignment: _descriptor_0.alignment() } }] } },
+                                                                                 { popeq: { cached: false,
+                                                                                            result: undefined } }]).value);
+    __compactRuntime.assert(subject_0.status === 1, 'credential not active');
+    let tmp_0;
+    __compactRuntime.assert(!(tmp_0 = subject_0.credId,
+                              _descriptor_5.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                        partialProofData,
+                                                                                        [
+                                                                                         { dup: { n: 0 } },
+                                                                                         { idx: { cached: false,
+                                                                                                  pushPath: false,
+                                                                                                  path: [
+                                                                                                         { tag: 'value',
+                                                                                                           value: { value: _descriptor_1.toValue(10n),
+                                                                                                                    alignment: _descriptor_1.alignment() } }] } },
+                                                                                         { push: { storage: false,
+                                                                                                   value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(tmp_0),
+                                                                                                                                                alignment: _descriptor_0.alignment() }).encode() } },
+                                                                                         'member',
+                                                                                         { popeq: { cached: true,
+                                                                                                    result: undefined } }]).value)),
+                            'credential revoked');
+    this._checkPossession_0(context, partialProofData);
     __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
                                                                  this._credentialVersionSlot_0(context,
                                                                                                partialProofData),
-                                                                 'proofgate.compact line 242 char 10')
+                                                                 'proofgate.compact line 295 char 10')
                             ===
                             this._credentialVersion_0(context, partialProofData),
                             'credential version slot mismatch');
     __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
                                                                  this._ageSlot_0(context,
                                                                                  partialProofData),
-                                                                 'proofgate.compact line 243 char 10')
+                                                                 'proofgate.compact line 296 char 10')
                             ===
                             this._age_0(context, partialProofData),
                             'age attribute not bound to signature');
     __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
                                                                  this._kycLevelSlot_0(context,
                                                                                       partialProofData),
-                                                                 'proofgate.compact line 244 char 10')
+                                                                 'proofgate.compact line 297 char 10')
                             ===
                             this._kycLevel_0(context, partialProofData),
                             'kyc level not bound to signature');
     __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
-                                                                 this._issuedAtSlot_0(context,
-                                                                                      partialProofData),
-                                                                 'proofgate.compact line 245 char 10')
-                            ===
-                            this._issuedAt_0(context, partialProofData),
-                            'issuedAt not bound to signature');
-    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
-                                                                 this._expiresAtSlot_0(context,
-                                                                                       partialProofData),
-                                                                 'proofgate.compact line 246 char 10')
-                            ===
-                            this._expiresAt_0(context, partialProofData),
-                            'expiresAt not bound to signature');
-    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
                                                                  this._policyVersionSlot_0(context,
                                                                                            partialProofData),
-                                                                 'proofgate.compact line 247 char 10')
+                                                                 'proofgate.compact line 298 char 10')
                             ===
                             this._policyVersion_0(context, partialProofData),
                             'policy version not bound to signature');
-    __compactRuntime.assert(this._equal_1(this._signedIssuerId_0(context,
-                                                                 partialProofData),
-                                          this._issuerId_0(this._issuerPkX_0(context,
-                                                                             partialProofData),
-                                                           this._issuerPkY_0(context,
-                                                                             partialProofData))),
-                            'issuer id mismatch');
-    __compactRuntime.assert(this._equal_2(this._subjectCommitment_0(context,
-                                                                    partialProofData),
-                                          this._subjectKey_0(domain_0,
-                                                             this._subjectPkX_0(context,
-                                                                                partialProofData),
-                                                             this._subjectPkY_0(context,
-                                                                                partialProofData))),
-                            'subject commitment mismatch');
-    let t_0;
-    __compactRuntime.assert((t_0 = this._expiresAt_0(context, partialProofData),
-                             t_0 > this._issuedAt_0(context, partialProofData)),
-                            'expiry not after issue');
-    __compactRuntime.assert(!this._equal_3(_descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
+    __compactRuntime.assert(this._equal_1(this._signedClaimCommitment_0(context,
+                                                                        partialProofData),
+                                          subject_0.claimCommitment),
+                            'claims do not match enrolled credential');
+    __compactRuntime.assert(!this._equal_2(_descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
                                                                                                      [
                                                                                                       { dup: { n: 0 } },
@@ -1809,7 +1847,7 @@ export class Contract {
                                                                                                                  result: undefined } }]).value),
                                            new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])),
                             'no active policy');
-    __compactRuntime.assert(this._equal_4(this._policyVersion_0(context,
+    __compactRuntime.assert(this._equal_3(this._policyVersion_0(context,
                                                                 partialProofData),
                                           _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                     partialProofData,
@@ -1824,7 +1862,7 @@ export class Contract {
                                                                                                      { popeq: { cached: false,
                                                                                                                 result: undefined } }]).value)),
                             'policy version mismatch');
-    __compactRuntime.assert(this._equal_5(this._credentialVersion_0(context,
+    __compactRuntime.assert(this._equal_4(this._credentialVersion_0(context,
                                                                     partialProofData),
                                           _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                     partialProofData,
@@ -1839,9 +1877,9 @@ export class Contract {
                                                                                                      { popeq: { cached: false,
                                                                                                                 result: undefined } }]).value)),
                             'credential version not accepted');
-    let t_1;
-    __compactRuntime.assert((t_1 = this._age_0(context, partialProofData),
-                             t_1
+    let t_0;
+    __compactRuntime.assert((t_0 = this._age_0(context, partialProofData),
+                             t_0
                              >=
                              _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                        partialProofData,
@@ -1856,9 +1894,9 @@ export class Contract {
                                                                                         { popeq: { cached: false,
                                                                                                    result: undefined } }]).value)),
                             'below minimum age');
-    let t_2;
-    __compactRuntime.assert((t_2 = this._kycLevel_0(context, partialProofData),
-                             t_2
+    let t_1;
+    __compactRuntime.assert((t_1 = this._kycLevel_0(context, partialProofData),
+                             t_1
                              >=
                              _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                        partialProofData,
@@ -1873,7 +1911,7 @@ export class Contract {
                                                                                         { popeq: { cached: false,
                                                                                                    result: undefined } }]).value)),
                             'insufficient kyc level');
-    __compactRuntime.assert(this._equal_6(this._persistentHash_4(juris_0),
+    __compactRuntime.assert(this._equal_5(this._persistentHash_4(juris_0),
                                           _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                     partialProofData,
                                                                                                     [
@@ -1888,26 +1926,80 @@ export class Contract {
                                                                                                                 result: undefined } }]).value)),
                             'jurisdiction commitment mismatch');
     const j_0 = this._jurisdiction_0(context, partialProofData);
-    __compactRuntime.assert(this._equal_7(j_0, juris_0[0])
+    __compactRuntime.assert(this._equal_6(j_0, juris_0[0])
                             ||
-                            this._equal_8(j_0, juris_0[1])
+                            this._equal_7(j_0, juris_0[1])
                             ||
-                            this._equal_9(j_0, juris_0[2])
+                            this._equal_8(j_0, juris_0[2])
                             ||
-                            this._equal_10(j_0, juris_0[3])
+                            this._equal_9(j_0, juris_0[3])
                             ||
-                            this._equal_11(j_0, juris_0[4])
+                            this._equal_10(j_0, juris_0[4])
                             ||
-                            this._equal_12(j_0, juris_0[5])
+                            this._equal_11(j_0, juris_0[5])
                             ||
-                            this._equal_13(j_0, juris_0[6])
+                            this._equal_12(j_0, juris_0[6])
                             ||
-                            this._equal_14(j_0, juris_0[7]),
+                            this._equal_13(j_0, juris_0[7]),
                             'jurisdiction not allowed');
+    const tmp_1 = { status: 1,
+                    credId: subject_0.credId,
+                    issuerId: subject_0.issuerId,
+                    kycLevel: subject_0.kycLevel,
+                    policyVersion: subject_0.policyVersion,
+                    claimCommitment: subject_0.claimCommitment,
+                    attestedPolicyVersion:
+                      _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                partialProofData,
+                                                                                [
+                                                                                 { dup: { n: 0 } },
+                                                                                 { idx: { cached: false,
+                                                                                          pushPath: false,
+                                                                                          path: [
+                                                                                                 { tag: 'value',
+                                                                                                   value: { value: _descriptor_1.toValue(3n),
+                                                                                                            alignment: _descriptor_1.alignment() } }] } },
+                                                                                 { popeq: { cached: false,
+                                                                                            result: undefined } }]).value),
+                    expiresAt: subject_0.expiresAt,
+                    registeredAt: subject_0.registeredAt };
+    __compactRuntime.queryLedgerState(context,
+                                      partialProofData,
+                                      [
+                                       { idx: { cached: false,
+                                                pushPath: true,
+                                                path: [
+                                                       { tag: 'value',
+                                                         value: { value: _descriptor_1.toValue(9n),
+                                                                  alignment: _descriptor_1.alignment() } }] } },
+                                       { push: { storage: false,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(pk_0),
+                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
+                                       { push: { storage: true,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_8.toValue(tmp_1),
+                                                                                              alignment: _descriptor_8.alignment() }).encode() } },
+                                       { ins: { cached: false, n: 1 } },
+                                       { ins: { cached: true, n: 1 } }]);
+    const tmp_2 = 1n;
+    __compactRuntime.queryLedgerState(context,
+                                      partialProofData,
+                                      [
+                                       { idx: { cached: false,
+                                                pushPath: true,
+                                                path: [
+                                                       { tag: 'value',
+                                                         value: { value: _descriptor_1.toValue(12n),
+                                                                  alignment: _descriptor_1.alignment() } }] } },
+                                       { addi: { immediate: parseInt(__compactRuntime.valueToBigInt(
+                                                              { value: _descriptor_6.toValue(tmp_2),
+                                                                alignment: _descriptor_6.alignment() }
+                                                                .value
+                                                            )) } },
+                                       { ins: { cached: true, n: 1 } }]);
     return [];
   }
   _rotateAdmin_0(context, partialProofData, newAdminPk_0) {
-    __compactRuntime.assert(this._equal_15(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_14(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -1960,7 +2052,7 @@ export class Contract {
                jurisdictionCommitmentParam_0,
                jurisdictionsParam_0)
   {
-    __compactRuntime.assert(this._equal_16(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_15(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -1977,7 +2069,7 @@ export class Contract {
                             'caller is not the admin');
     __compactRuntime.assert(versionParam_0 > 0n,
                             'policy version must be positive');
-    __compactRuntime.assert(this._equal_17(this._persistentHash_4(jurisdictionsParam_0),
+    __compactRuntime.assert(this._equal_16(this._persistentHash_4(jurisdictionsParam_0),
                                            jurisdictionCommitmentParam_0),
                             'jurisdiction commitment mismatch');
     __compactRuntime.queryLedgerState(context,
@@ -2064,7 +2156,7 @@ export class Contract {
                     issuerPkYParam_0,
                     metadataHash_0)
   {
-    __compactRuntime.assert(this._equal_18(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_17(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -2156,7 +2248,7 @@ export class Contract {
                      issuerPkYParam_0,
                      status_0)
   {
-    __compactRuntime.assert(this._equal_19(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_18(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -2263,7 +2355,7 @@ export class Contract {
     return [];
   }
   _revokeCredential_0(context, partialProofData, credIdParam_0) {
-    __compactRuntime.assert(this._equal_20(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_19(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -2313,7 +2405,7 @@ export class Contract {
     return [];
   }
   _unrevokeCredential_0(context, partialProofData, credIdParam_0) {
-    __compactRuntime.assert(this._equal_21(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_20(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -2361,7 +2453,7 @@ export class Contract {
     return [];
   }
   _setSubjectStatus_0(context, partialProofData, subjectPk_0, status_0) {
-    __compactRuntime.assert(this._equal_22(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_21(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -2418,6 +2510,8 @@ export class Contract {
                     issuerId: subject_0.issuerId,
                     kycLevel: subject_0.kycLevel,
                     policyVersion: subject_0.policyVersion,
+                    claimCommitment: subject_0.claimCommitment,
+                    attestedPolicyVersion: subject_0.attestedPolicyVersion,
                     expiresAt: subject_0.expiresAt,
                     registeredAt: subject_0.registeredAt };
     __compactRuntime.queryLedgerState(context,
@@ -2455,7 +2549,7 @@ export class Contract {
                                        { ins: { cached: true, n: 1 } }]);
     return [];
   }
-  _registerCredential_0(context, partialProofData, juris_0) {
+  _registerCredential_0(context, partialProofData) {
     const id_0 = this._issuerId_0(this._issuerPkX_0(context, partialProofData),
                                   this._issuerPkY_0(context, partialProofData));
     __compactRuntime.assert(_descriptor_5.fromValue(__compactRuntime.queryLedgerState(context,
@@ -2511,21 +2605,75 @@ export class Contract {
                                                                                       { popeq: { cached: false,
                                                                                                  result: undefined } }]).value));
     this._checkPossession_0(context, partialProofData);
-    this._checkCredential_0(context,
-                            partialProofData,
-                            juris_0,
-                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
-                                                                                      partialProofData,
-                                                                                      [
-                                                                                       { dup: { n: 0 } },
-                                                                                       { idx: { cached: false,
-                                                                                                pushPath: false,
-                                                                                                path: [
-                                                                                                       { tag: 'value',
-                                                                                                         value: { value: _descriptor_1.toValue(0n),
-                                                                                                                  alignment: _descriptor_1.alignment() } }] } },
-                                                                                       { popeq: { cached: false,
-                                                                                                  result: undefined } }]).value));
+    __compactRuntime.assert(this._equal_22(this._signedIssuerId_0(context,
+                                                                  partialProofData),
+                                           id_0),
+                            'issuer id mismatch');
+    __compactRuntime.assert(this._equal_23(this._subjectCommitment_0(context,
+                                                                     partialProofData),
+                                           this._subjectKey_0(_descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                                                        partialProofData,
+                                                                                                                        [
+                                                                                                                         { dup: { n: 0 } },
+                                                                                                                         { idx: { cached: false,
+                                                                                                                                  pushPath: false,
+                                                                                                                                  path: [
+                                                                                                                                         { tag: 'value',
+                                                                                                                                           value: { value: _descriptor_1.toValue(0n),
+                                                                                                                                                    alignment: _descriptor_1.alignment() } }] } },
+                                                                                                                         { popeq: { cached: false,
+                                                                                                                                    result: undefined } }]).value),
+                                                              this._subjectPkX_0(context,
+                                                                                 partialProofData),
+                                                              this._subjectPkY_0(context,
+                                                                                 partialProofData))),
+                            'subject commitment mismatch');
+    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
+                                                                 this._credentialVersionSlot_0(context,
+                                                                                               partialProofData),
+                                                                 'proofgate.compact line 483 char 10')
+                            ===
+                            this._credentialVersion_0(context, partialProofData),
+                            'credential version slot mismatch');
+    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
+                                                                 this._ageSlot_0(context,
+                                                                                 partialProofData),
+                                                                 'proofgate.compact line 484 char 10')
+                            ===
+                            this._age_0(context, partialProofData),
+                            'age attribute not bound to signature');
+    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
+                                                                 this._kycLevelSlot_0(context,
+                                                                                      partialProofData),
+                                                                 'proofgate.compact line 485 char 10')
+                            ===
+                            this._kycLevel_0(context, partialProofData),
+                            'kyc level not bound to signature');
+    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
+                                                                 this._issuedAtSlot_0(context,
+                                                                                      partialProofData),
+                                                                 'proofgate.compact line 486 char 10')
+                            ===
+                            this._issuedAt_0(context, partialProofData),
+                            'issuedAt not bound to signature');
+    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
+                                                                 this._expiresAtSlot_0(context,
+                                                                                       partialProofData),
+                                                                 'proofgate.compact line 487 char 10')
+                            ===
+                            this._expiresAt_0(context, partialProofData),
+                            'expiresAt not bound to signature');
+    __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
+                                                                 this._policyVersionSlot_0(context,
+                                                                                           partialProofData),
+                                                                 'proofgate.compact line 488 char 10')
+                            ===
+                            this._policyVersion_0(context, partialProofData),
+                            'policy version not bound to signature');
+    let t_0;
+    __compactRuntime.assert((t_0 = this._expiresAt_0(context, partialProofData),
+                             t_0 > this._issuedAt_0(context, partialProofData)),
+                            'expiry not after issue');
     let tmp_0;
     __compactRuntime.assert(!(tmp_0 = this._issuedAt_0(context, partialProofData),
                               _descriptor_5.fromValue(__compactRuntime.queryLedgerState(context,
@@ -2619,6 +2767,9 @@ export class Contract {
                     kycLevel: this._kycLevel_0(context, partialProofData),
                     policyVersion:
                       this._policyVersion_0(context, partialProofData),
+                    claimCommitment:
+                      this._signedClaimCommitment_0(context, partialProofData),
+                    attestedPolicyVersion: 0n,
                     expiresAt: this._expiresAt_0(context, partialProofData),
                     registeredAt:
                       _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
@@ -2762,7 +2913,7 @@ export class Contract {
                                                                                         { popeq: { cached: true,
                                                                                                    result: undefined } }]).value)),
                             'credential expired');
-    __compactRuntime.assert(this._equal_23(subject_0.policyVersion,
+    __compactRuntime.assert(this._equal_24(subject_0.attestedPolicyVersion,
                                            _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
                                                                                                      [
@@ -2775,10 +2926,10 @@ export class Contract {
                                                                                                                                  alignment: _descriptor_1.alignment() } }] } },
                                                                                                       { popeq: { cached: false,
                                                                                                                  result: undefined } }]).value)),
-                            'credential policy no longer active');
+                            'credential not attested compliant');
     __compactRuntime.assert(__compactRuntime.convertBytesToField(32,
                                                                  expiresAtSlot_0,
-                                                                 'proofgate.compact line 449 char 10')
+                                                                 'proofgate.compact line 530 char 10')
                             ===
                             expiresAt_0,
                             'permit expiry slot mismatch');
@@ -2799,7 +2950,7 @@ export class Contract {
                                                                                        { popeq: { cached: true,
                                                                                                   result: undefined } }]).value),
                             'permit expiry must be in the future');
-    const permitId_0 = this._persistentHash_5([new Uint8Array([80, 114, 111, 111, 102, 71, 97, 116, 101, 80, 101, 114, 109, 105, 116, 58, 118, 49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    const permitId_0 = this._persistentHash_6([new Uint8Array([80, 114, 111, 111, 102, 71, 97, 116, 101, 80, 101, 114, 109, 105, 116, 58, 118, 49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
                                                _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                          partialProofData,
                                                                                                          [
@@ -3020,9 +3171,9 @@ export class Contract {
                                                                                                            alignment: _descriptor_0.alignment() } }] } },
                                                                                 { popeq: { cached: false,
                                                                                            result: undefined } }]).value);
-    __compactRuntime.assert(this._equal_24(permit_0.holder, pk_0),
+    __compactRuntime.assert(this._equal_25(permit_0.holder, pk_0),
                             'permit belongs to another subject');
-    __compactRuntime.assert(this._equal_25(permit_0.feature, feature_0),
+    __compactRuntime.assert(this._equal_26(permit_0.feature, feature_0),
                             'feature mismatch');
     __compactRuntime.assert(permit_0.status === 0, 'permit not valid');
     let tmp_2;
@@ -3088,7 +3239,7 @@ export class Contract {
     return [];
   }
   _revokePermit_0(context, partialProofData, permitId_0) {
-    __compactRuntime.assert(this._equal_26(this._adminKey_0(this._adminSecret_0(context,
+    __compactRuntime.assert(this._equal_27(this._adminKey_0(this._adminSecret_0(context,
                                                                                 partialProofData)),
                                            _descriptor_0.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                      partialProofData,
@@ -3204,7 +3355,7 @@ export class Contract {
     return true;
   }
   _equal_3(x0, y0) {
-    if (!x0.every((x, i) => y0[i] === x)) { return false; }
+    if (x0 !== y0) { return false; }
     return true;
   }
   _equal_4(x0, y0) {
@@ -3212,7 +3363,7 @@ export class Contract {
     return true;
   }
   _equal_5(x0, y0) {
-    if (x0 !== y0) { return false; }
+    if (!x0.every((x, i) => y0[i] === x)) { return false; }
     return true;
   }
   _equal_6(x0, y0) {
@@ -3284,11 +3435,11 @@ export class Contract {
     return true;
   }
   _equal_23(x0, y0) {
-    if (x0 !== y0) { return false; }
+    if (!x0.every((x, i) => y0[i] === x)) { return false; }
     return true;
   }
   _equal_24(x0, y0) {
-    if (!x0.every((x, i) => y0[i] === x)) { return false; }
+    if (x0 !== y0) { return false; }
     return true;
   }
   _equal_25(x0, y0) {
@@ -3296,6 +3447,10 @@ export class Contract {
     return true;
   }
   _equal_26(x0, y0) {
+    if (!x0.every((x, i) => y0[i] === x)) { return false; }
+    return true;
+  }
+  _equal_27(x0, y0) {
     if (!x0.every((x, i) => y0[i] === x)) { return false; }
     return true;
   }
@@ -3475,7 +3630,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('member',
                                      'argument 1',
-                                     'proofgate.compact line 120 char 1',
+                                     'proofgate.compact line 146 char 1',
                                      'Bytes<32>',
                                      key_0)
         }
@@ -3504,7 +3659,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('lookup',
                                      'argument 1',
-                                     'proofgate.compact line 120 char 1',
+                                     'proofgate.compact line 146 char 1',
                                      'Bytes<32>',
                                      key_0)
         }
@@ -3584,7 +3739,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('member',
                                      'argument 1',
-                                     'proofgate.compact line 121 char 1',
+                                     'proofgate.compact line 147 char 1',
                                      'Bytes<32>',
                                      key_0)
         }
@@ -3613,7 +3768,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('lookup',
                                      'argument 1',
-                                     'proofgate.compact line 121 char 1',
+                                     'proofgate.compact line 147 char 1',
                                      'Bytes<32>',
                                      key_0)
         }
@@ -3693,7 +3848,7 @@ export function ledger(stateOrChargedState) {
         if (!(elem_0.buffer instanceof ArrayBuffer && elem_0.BYTES_PER_ELEMENT === 1 && elem_0.length === 32)) {
           __compactRuntime.typeError('member',
                                      'argument 1',
-                                     'proofgate.compact line 122 char 1',
+                                     'proofgate.compact line 148 char 1',
                                      'Bytes<32>',
                                      elem_0)
         }
@@ -3771,7 +3926,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('member',
                                      'argument 1',
-                                     'proofgate.compact line 123 char 1',
+                                     'proofgate.compact line 149 char 1',
                                      'Bytes<32>',
                                      key_0)
         }
@@ -3800,7 +3955,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('lookup',
                                      'argument 1',
-                                     'proofgate.compact line 123 char 1',
+                                     'proofgate.compact line 149 char 1',
                                      'Bytes<32>',
                                      key_0)
         }
@@ -3887,7 +4042,7 @@ export const pureCircuits = {
     if (!(sk_0.buffer instanceof ArrayBuffer && sk_0.BYTES_PER_ELEMENT === 1 && sk_0.length === 32)) {
       __compactRuntime.typeError('adminKey',
                                  'argument 1',
-                                 'proofgate.compact line 169 char 1',
+                                 'proofgate.compact line 195 char 1',
                                  'Bytes<32>',
                                  sk_0)
     }
@@ -3902,14 +4057,14 @@ export const pureCircuits = {
     if (!(pkX_0.buffer instanceof ArrayBuffer && pkX_0.BYTES_PER_ELEMENT === 1 && pkX_0.length === 32)) {
       __compactRuntime.typeError('issuerId',
                                  'argument 1',
-                                 'proofgate.compact line 173 char 1',
+                                 'proofgate.compact line 199 char 1',
                                  'Bytes<32>',
                                  pkX_0)
     }
     if (!(pkY_0.buffer instanceof ArrayBuffer && pkY_0.BYTES_PER_ELEMENT === 1 && pkY_0.length === 32)) {
       __compactRuntime.typeError('issuerId',
                                  'argument 2',
-                                 'proofgate.compact line 173 char 1',
+                                 'proofgate.compact line 199 char 1',
                                  'Bytes<32>',
                                  pkY_0)
     }
@@ -3925,21 +4080,21 @@ export const pureCircuits = {
     if (!(domain_0.buffer instanceof ArrayBuffer && domain_0.BYTES_PER_ELEMENT === 1 && domain_0.length === 32)) {
       __compactRuntime.typeError('subjectKey',
                                  'argument 1',
-                                 'proofgate.compact line 179 char 1',
+                                 'proofgate.compact line 205 char 1',
                                  'Bytes<32>',
                                  domain_0)
     }
     if (!(pkX_0.buffer instanceof ArrayBuffer && pkX_0.BYTES_PER_ELEMENT === 1 && pkX_0.length === 32)) {
       __compactRuntime.typeError('subjectKey',
                                  'argument 2',
-                                 'proofgate.compact line 179 char 1',
+                                 'proofgate.compact line 205 char 1',
                                  'Bytes<32>',
                                  pkX_0)
     }
     if (!(pkY_0.buffer instanceof ArrayBuffer && pkY_0.BYTES_PER_ELEMENT === 1 && pkY_0.length === 32)) {
       __compactRuntime.typeError('subjectKey',
                                  'argument 3',
-                                 'proofgate.compact line 179 char 1',
+                                 'proofgate.compact line 205 char 1',
                                  'Bytes<32>',
                                  pkY_0)
     }

@@ -11,6 +11,8 @@ export type Subject = { status: SubjectStatus;
                         issuerId: Uint8Array;
                         kycLevel: bigint;
                         policyVersion: bigint;
+                        claimCommitment: Uint8Array;
+                        attestedPolicyVersion: bigint;
                         expiresAt: bigint;
                         registeredAt: bigint
                       };
@@ -66,9 +68,8 @@ export type ImpureCircuits<PS> = {
   checkSignature(context: __compactRuntime.CircuitContext<PS>,
                  domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   checkPossession(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  checkCredential(context: __compactRuntime.CircuitContext<PS>,
-                  juris_0: Uint8Array[],
-                  domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  attestCompliance(context: __compactRuntime.CircuitContext<PS>,
+                   juris_0: Uint8Array[]): __compactRuntime.CircuitResults<PS, []>;
   rotateAdmin(context: __compactRuntime.CircuitContext<PS>,
               newAdminPk_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   setPolicy(context: __compactRuntime.CircuitContext<PS>,
@@ -94,8 +95,7 @@ export type ImpureCircuits<PS> = {
   setSubjectStatus(context: __compactRuntime.CircuitContext<PS>,
                    subjectPk_0: Uint8Array,
                    status_0: SubjectStatus): __compactRuntime.CircuitResults<PS, []>;
-  registerCredential(context: __compactRuntime.CircuitContext<PS>,
-                     juris_0: Uint8Array[]): __compactRuntime.CircuitResults<PS, []>;
+  registerCredential(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   requestPermit(context: __compactRuntime.CircuitContext<PS>,
                 feature_0: Uint8Array,
                 expiresAt_0: bigint,
@@ -108,9 +108,8 @@ export type ImpureCircuits<PS> = {
 }
 
 export type ProvableCircuits<PS> = {
-  checkCredential(context: __compactRuntime.CircuitContext<PS>,
-                  juris_0: Uint8Array[],
-                  domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  attestCompliance(context: __compactRuntime.CircuitContext<PS>,
+                   juris_0: Uint8Array[]): __compactRuntime.CircuitResults<PS, []>;
   rotateAdmin(context: __compactRuntime.CircuitContext<PS>,
               newAdminPk_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   setPolicy(context: __compactRuntime.CircuitContext<PS>,
@@ -136,8 +135,7 @@ export type ProvableCircuits<PS> = {
   setSubjectStatus(context: __compactRuntime.CircuitContext<PS>,
                    subjectPk_0: Uint8Array,
                    status_0: SubjectStatus): __compactRuntime.CircuitResults<PS, []>;
-  registerCredential(context: __compactRuntime.CircuitContext<PS>,
-                     juris_0: Uint8Array[]): __compactRuntime.CircuitResults<PS, []>;
+  registerCredential(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   requestPermit(context: __compactRuntime.CircuitContext<PS>,
                 feature_0: Uint8Array,
                 expiresAt_0: bigint,
@@ -167,9 +165,8 @@ export type Circuits<PS> = {
   checkSignature(context: __compactRuntime.CircuitContext<PS>,
                  domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   checkPossession(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  checkCredential(context: __compactRuntime.CircuitContext<PS>,
-                  juris_0: Uint8Array[],
-                  domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  attestCompliance(context: __compactRuntime.CircuitContext<PS>,
+                   juris_0: Uint8Array[]): __compactRuntime.CircuitResults<PS, []>;
   rotateAdmin(context: __compactRuntime.CircuitContext<PS>,
               newAdminPk_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   setPolicy(context: __compactRuntime.CircuitContext<PS>,
@@ -195,8 +192,7 @@ export type Circuits<PS> = {
   setSubjectStatus(context: __compactRuntime.CircuitContext<PS>,
                    subjectPk_0: Uint8Array,
                    status_0: SubjectStatus): __compactRuntime.CircuitResults<PS, []>;
-  registerCredential(context: __compactRuntime.CircuitContext<PS>,
-                     juris_0: Uint8Array[]): __compactRuntime.CircuitResults<PS, []>;
+  registerCredential(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   requestPermit(context: __compactRuntime.CircuitContext<PS>,
                 feature_0: Uint8Array,
                 expiresAt_0: bigint,
