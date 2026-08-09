@@ -212,7 +212,7 @@ on a trusted oracle to whisper "verified". ProofGate:
   claims* (as in the real world), but ProofGate never trusts them to evaluate
   policy.
 ## CI/CD badge or workflow file with passing runs
-[![ProofGate CI](https://github.com/sudha16-sketc/ProofGate/actions/workflows/main.yml/badge.svg)](https://github.com/sudha16-ketc/ProofGate/actions/workflows/main.yml)
+[![ProofGate CI](https://github.com/sudha16-sketc/ProofGate/blob/main/.github/workflows/main.yml/badge.svg)]((https://github.com/sudha16-sketc/ProofGate/blob/main/.github/workflows/main.yml))
 ## Technology Stack
 
 - **Language**: [Compact](https://docs.midnight.network/compact/writing)
