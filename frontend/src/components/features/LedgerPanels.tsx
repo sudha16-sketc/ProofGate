@@ -10,7 +10,6 @@ import { shortId, formatTimestamp } from '../../lib/formats';
 
 const SUBJECT_STATUS = ['NONE', 'ACTIVE', 'SUSPENDED', 'REVOKED'] as const;
 const ISSUER_STATUS = ['NONE', 'ACTIVE', 'SUSPENDED', 'REVOKED'] as const;
-const PERMIT_STATUS = ['VALID', 'CONSUMED', 'REVOKED'] as const;
 
 const TABS = [
   { id: 'policy', label: 'Policy' },

@@ -11,7 +11,6 @@ import { Reveal } from '../ui/Reveal';
 import { PermitConsumeModal } from './PermitConsumeModal';
 import { IconClock, IconKey, IconLock, IconZap } from '../icons';
 
-const PERMIT_STATUS = ['VALID', 'CONSUMED', 'REVOKED'] as const;
 
 function featureLabel(feature: string): string {
   const match = Object.values(FEATURE_META).find((f) => f.id === feature);
