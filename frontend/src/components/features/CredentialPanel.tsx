@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import {
   notify,
-  attestCompliance,
   registerCredential,
   useSessionBusy,
   useSessionMeta,
@@ -15,17 +14,17 @@ import { Button } from '../ui/Button';
 import { DataTable } from '../ui/DataTable';
 import { CopyButton } from '../ui/CopyButton';
 import { Stepper } from '../ui/Stepper';
-import { IconCertificate, IconCheckCircle, IconLock, IconShieldCheck, IconZap } from '../icons';
+import { IconCertificate, IconCheckCircle, IconLock, IconZap } from '../icons';
 import { formatTimestamp } from '../../lib/formats';
 
 const CLAIMS = [
   { label: 'Issuer signature valid & issued this credential', hint: 'Jubjub signature verified in-circuit' },
   { label: 'Key possession', hint: 'You hold the subject key the issuer signed' },
-  { label: 'Signed claims bound to enrollment', hint: 'claimCommitment pins age, jurisdiction, KYC and versions' },
+  { label: 'Signed claims bound to the credential', hint: 'Every signed slot is checked against the witness in-circuit' },
   { label: 'Not expired / not revoked', hint: 'Checked against public state' },
-  { label: 'Age ≥ policy minimum', hint: 'Proven in-circuit at attestation, exact value hidden' },
-  { label: 'KYC level ≥ policy requirement', hint: 'Proven in-circuit at attestation, level hidden' },
-  { label: 'Jurisdiction in allowed list', hint: 'Proven in-circuit at attestation, value hidden' },
+  { label: 'Age ≥ policy minimum', hint: 'Proven in-circuit at registration, exact value hidden' },
+  { label: 'KYC level ≥ policy requirement', hint: 'Proven in-circuit at registration, level hidden' },
+  { label: 'Jurisdiction in allowed list', hint: 'Proven in-circuit at registration, value hidden' },
 ];
 
 export function CredentialPanel() {
@@ -71,28 +70,8 @@ export function CredentialPanel() {
                 <CredRow k="Issuer id" v={subject.issuerId} mono copyable />
                 <CredRow k="KYC level" v={`≥ ${subject.kycLevel.toString()}`} />
                 <CredRow k="Policy version" v={`v${subject.policyVersion.toString()}`} />
-                <CredRow
-                  k="Attested compliance"
-                  v={
-                    subject.attestedPolicyVersion === meta!.activePolicyVersion
-                      ? `v${subject.attestedPolicyVersion.toString()} (up to date)`
-                      : `v${subject.attestedPolicyVersion.toString()} (stale)`
-                  }
-                />
                 <CredRow k="Registered" v={formatTimestamp(subject.registeredAt)} />
                 <CredRow k="Expires" v={formatTimestamp(subject.expiresAt)} />
-                {subject.attestedPolicyVersion !== meta!.activePolicyVersion && (
-                  <div className="row-wrap" style={{ marginTop: 8 }}>
-                    <Button
-                      variant="primary"
-                      onClick={() => void attestCompliance()}
-                      loading={busy !== null}
-                      icon={<IconShieldCheck size={16} />}
-                    >
-                      {busy ? 'Proving…' : 'Attest compliance'}
-                    </Button>
-                  </div>
-                )}
               </div>
             ) : (
               <>

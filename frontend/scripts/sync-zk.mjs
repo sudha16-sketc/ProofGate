@@ -28,8 +28,8 @@ if (!existsSync(keysDir) || !existsSync(zkirDir)) {
   process.exit(1);
 }
 
-// Wipe the target dirs first so circuits dropped from `managed/` (e.g. the old
-// `checkCredential`) never linger in `public/` and get served to the browser.
+// Wipe the target dirs first so circuits dropped from `managed/` (e.g. the
+// current `attestCompliance`) never linger in `public/` and get served to the browser.
 rmSync(publicKeysDir, { recursive: true, force: true });
 rmSync(publicZkirDir, { recursive: true, force: true });
 mkdirSync(publicKeysDir, { recursive: true });

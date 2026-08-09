@@ -4,7 +4,6 @@ import {
   useSessionMeta,
   useSessionStatus,
   activateDemoPolicy,
-  attestCompliance,
   registerCredential,
   registerDemoIssuer,
   requestPermit,
@@ -24,7 +23,6 @@ type FlowStep =
   | { key: 'policy'; label: 'Activate demo policy' }
   | { key: 'issuer'; label: 'Register demo issuer' }
   | { key: 'credential'; label: 'Register credential' }
-  | { key: 'attest'; label: 'Attest compliance' }
   | { key: 'permit'; label: 'Request one-time permit' };
 
 /** Advance the visualizer's circuit stage while a call is in flight. */
@@ -77,8 +75,6 @@ export function ProveFlow({
     if (!meta?.policyActive) list.push({ key: 'policy', label: 'Activate demo policy' });
     if (!meta?.demoIssuerActive) list.push({ key: 'issuer', label: 'Register demo issuer' });
     if (meta?.mySubject?.status !== 1) list.push({ key: 'credential', label: 'Register credential' });
-    const notAttested = meta?.mySubject?.attestedPolicyVersion !== meta?.activePolicyVersion;
-    if (meta?.mySubject && notAttested) list.push({ key: 'attest', label: 'Attest compliance' });
     list.push({ key: 'permit', label: 'Request one-time permit' });
     return list;
   }, [meta]);
@@ -98,7 +94,6 @@ export function ProveFlow({
       policy: () => activateDemoPolicy(),
       issuer: () => registerDemoIssuer(),
       credential: () => registerCredential(),
-      attest: () => attestCompliance(),
       permit: () => requestPermit(feature),
     };
 

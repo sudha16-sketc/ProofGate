@@ -227,29 +227,24 @@ async function cmdDemo(network: any, networkConfig: any, contractAddress: string
   printPrivacyBanner();
   console.log(`    ✅ txId=${tx1.public.txId}\n`);
 
-  console.log('3/6 — User registers a credential (ZK: issuer signature, possession, binding)...');
-  const tx2 = await found.callTx.registerCredential();
+  console.log('3/5 — User registers a credential (ZK: issuer signature, possession, binding, policy compliance)...');
+  const tx2 = await found.callTx.registerCredential(juris);
   printPrivacyBanner();
   console.log(`    ✅ txId=${tx2.public.txId}\n`);
 
-  console.log('4/6 — User proves compliance of the enrolled credential against the active policy (ZK: age, KYC, jurisdiction)...');
-  const tx3 = await found.callTx.attestCompliance(juris);
-  printPrivacyBanner();
-  console.log(`    ✅ txId=${tx3.public.txId}\n`);
-
-  console.log('5/6 — User requests a one-time permit for rwa:purchase...');
+  console.log('4/5 — User requests a one-time permit for rwa:purchase...');
   const expiresAt = BigInt(Math.floor(Date.now() / 1000) + 3600);
-  const tx4 = await found.callTx.requestPermit(pad32(FEATURES.rwaPurchase), expiresAt, le32(expiresAt));
+  const tx3 = await found.callTx.requestPermit(pad32(FEATURES.rwaPurchase), expiresAt, le32(expiresAt));
   printPrivacyBanner();
   const pseudonym = await subjectPseudonym(networkConfig, contractAddress, privateState);
   const permitId = await findLatestPermitId(networkConfig, contractAddress, pseudonym, pad32(FEATURES.rwaPurchase));
-  console.log(`    ✅ txId=${tx4.public.txId} permitId=${permitId ? hex(permitId) : 'n/a'}\n`);
+  console.log(`    ✅ txId=${tx3.public.txId} permitId=${permitId ? hex(permitId) : 'n/a'}\n`);
   if (!permitId) throw new Error('Permit not found in ledger after request');
 
-  console.log('6/6 — User consumes the permit (one-time access to the regulated action)...');
-  const tx5 = await found.callTx.consumePermit(pad32(FEATURES.rwaPurchase), permitId);
+  console.log('5/5 — User consumes the permit (one-time access to the regulated action)...');
+  const tx4 = await found.callTx.consumePermit(pad32(FEATURES.rwaPurchase), permitId);
   printPrivacyBanner();
-  console.log(`    ✅ txId=${tx5.public.txId}\n`);
+  console.log(`    ✅ txId=${tx4.public.txId}\n`);
 
   console.log('─── Final state ──────────────────────────────────────────────\n');
   await printInfo(network, networkConfig, contractAddress);
@@ -279,8 +274,7 @@ ProofGate CLI — ${network} — ${contractAddress}
   info                          read-only contract summary via indexer
   set-policy <policyIdHex>      admin: activate a compliance policy (defaults: minAge 18, KYC 2)
   register-issuer <xHex> <yHex> admin: register a trusted KYC issuer (Jubjub pubkey coords)
-  register-credential           user: register an issuer-signed credential (ZK)
-  attest-compliance [policyId]   user: prove enrolled credential complies with the active policy (ZK)
+  register-credential           user: register an issuer-signed credential proving policy compliance (ZK)
   request-permit <feature> [t]  user: request a one-time permit (t = unix expiry, default now+1h)
   consume-permit <f> <idHex>    user: consume a permit exactly once
   demo                          full happy-path walkthrough
@@ -338,22 +332,15 @@ ProofGate CLI — ${network} — ${contractAddress}
       break;
     }
     case 'register-credential': {
-      const tx = await found.callTx.registerCredential();
+      const tx = await found.callTx.registerCredential(juris);
       printPrivacyBanner();
       console.log(`✅ credential registered. txId=${tx.public.txId}`);
-      break;
-    }
-    case 'attest-compliance': {
-      const tx = await found.callTx.attestCompliance(juris);
-      printPrivacyBanner();
-      console.log(`✅ compliance attested. txId=${tx.public.txId}`);
       break;
     }
     case 'request-permit': {
       const feature = args[1];
       if (!feature) throw new Error('usage: request-permit <feature> [expiryUnix]');
       const expiresAt = args[2] ? BigInt(args[2]) : BigInt(Math.floor(Date.now() / 1000) + 3600);
-      await found.callTx.attestCompliance(juris);
       const tx = await found.callTx.requestPermit(pad32(feature), expiresAt, le32(expiresAt));
       printPrivacyBanner();
       const pseudonym = await subjectPseudonym(networkConfig, contractAddress, privateState);

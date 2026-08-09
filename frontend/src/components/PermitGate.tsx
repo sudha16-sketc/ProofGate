@@ -1,8 +1,7 @@
 // PermitGate — the core ProofGate user flow (v3).
 //
-// Every action here is a zero-knowledge proof that the wallet builds in-app:
-//   - "Deploy (demo admin)"       → deploys a fresh ProofGate contract using
-//                                   this session's secret as the admin.
+// Every action here is a zero-knowledge proof that the wallet builds in-app
+// against the configured, already-deployed ProofGate contract:
 //   - "Activate demo policy"      → admin action; publishes the compliance
 //                                   policy (min age, KYC level, jurisdictions).
 //   - "Register demo issuer"      → admin action; publishes a trusted issuer key.
@@ -44,7 +43,6 @@ import {
 import { buildProofGateProviders, type ProofGateProviders } from '../lib/providers';
 import {
   connectToDeployedProofGate,
-  deployProofGateFromWallet,
   type ProofGateContractHandle,
 } from '../lib/contract';
 import * as ProofGateContractModule from '../../../managed/proofgate/contract/index.js';
@@ -262,26 +260,6 @@ export function PermitGate({ onContractAddressChange }: Props) {
     [address, refreshLedger],
   );
 
-  const handleDeploy = useCallback(async () => {
-    const providers = providersRef.current;
-    const privateState = privateStateRef.current;
-    if (!providers || !privateState) return;
-    setBusy('Deploying ProofGate (demo admin)…');
-    setMessage(null);
-    try {
-      const addr = await deployProofGateFromWallet(providers, privateState);
-      const handle = await connectToDeployedProofGate(providers, addr, privateState);
-      handleRef.current = handle;
-      setAddress(addr);
-      onContractAddressChange(addr);
-      setMessage({ kind: 'ok', text: `Deployed at ${addr}. Copy it into VITE_CONTRACT_ADDRESS to reuse.` });
-    } catch (err) {
-      setMessage({ kind: 'error', text: `Deploy failed: ${friendlyError(err)}` });
-    } finally {
-      setBusy(null);
-    }
-  }, [onContractAddressChange]);
-
   const handleActivatePolicy = useCallback(() => {
     const juris = jurisdictionSlots(JURISDICTIONS);
     void run('Activating demo policy', async (_p, handle) => {
@@ -310,22 +288,12 @@ export function PermitGate({ onContractAddressChange }: Props) {
   }, [run]);
 
   const handleRegisterCredential = useCallback(() => {
-    void run('Registering credential', async (_p, handle) => {
-      const tx = await handle.callTx.registerCredential();
-      setMessage({
-        kind: 'ok',
-        text: `Credential registered (ZK: issuer-signed, bound to subject). txId ${tx.public.txId}`,
-      });
-    });
-  }, [run]);
-
-  const handleAttestCompliance = useCallback(() => {
     const juris = jurisdictionSlots(JURISDICTIONS);
-    void run('Attesting compliance', async (_p, handle) => {
-      const tx = await handle.callTx.attestCompliance(juris);
+    void run('Registering credential', async (_p, handle) => {
+      const tx = await handle.callTx.registerCredential(juris);
       setMessage({
         kind: 'ok',
-        text: `Compliance attested (ZK: age ≥ ${DEFAULT_MIN_AGE}, KYC ≥ ${DEFAULT_KYC_LEVEL}, jurisdiction allowed). txId ${tx.public.txId}`,
+        text: `Credential registered (ZK: issuer-signed, bound to subject, policy-compliant). txId ${tx.public.txId}`,
       });
     });
   }, [run]);
@@ -341,7 +309,6 @@ export function PermitGate({ onContractAddressChange }: Props) {
         privateState!.subjectPubY,
       );
       const expiresAt = BigInt(Math.floor(Date.now() / 1000) + 3600);
-      await handle.callTx.attestCompliance(jurisdictionSlots(JURISDICTIONS));
       const tx = await handle.callTx.requestPermit(pad32(feature), expiresAt, le32(expiresAt));
       const id = await findPermitId(p, addr, pseudonym, pad32(feature));
       setPermitId(id);
@@ -386,10 +353,9 @@ export function PermitGate({ onContractAddressChange }: Props) {
       {!address && !CONTRACT_ADDRESS && (
         <div className="action-group">
           <p>
-            No contract is configured (<code>VITE_CONTRACT_ADDRESS</code>). Deploy a demo ProofGate from this wallet —
-            your session secret becomes the admin.
+            No contract is configured (<code>VITE_CONTRACT_ADDRESS</code>). The app connects only to an existing
+            deployed ProofGate contract — set <code>VITE_CONTRACT_ADDRESS</code> to the deployed address and reload.
           </p>
-          <button onClick={handleDeploy}>Deploy ProofGate (demo admin)</button>
         </div>
       )}
 
@@ -415,7 +381,6 @@ export function PermitGate({ onContractAddressChange }: Props) {
           <div className="action-group">
             <h3>User flow</h3>
             <button onClick={handleRegisterCredential}>Register credential</button>
-            <button onClick={handleAttestCompliance}>Attest compliance</button>
           </div>
 
           <div className="action-group">

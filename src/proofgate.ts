@@ -356,27 +356,6 @@ export function jurisdictionCommitment(slots: Uint8Array[]): Uint8Array {
   return persistentHash(new CompactTypeVector(8, new CompactTypeBytes(32)), slots);
 }
 
-/**
- * Commitment to the compliance-relevant *signed* claims (age, jurisdiction,
- * KYC level, credential version, policy version) — exactly what the contract
- * stores in Subject.claimCommitment at registration and re-checks in
- * attestCompliance. The raw claims never reach the chain.
- */
-export function claimCommitment(
-  ps: Pick<
-    ProofGatePrivateState,
-    'ageSlot' | 'jurisdiction' | 'kycLevelSlot' | 'credentialVersionSlot' | 'policyVersionSlot'
-  >,
-): Uint8Array {
-  return persistentHash(new CompactTypeVector(5, new CompactTypeBytes(32)), [
-    ps.ageSlot,
-    ps.jurisdiction,
-    ps.kycLevelSlot,
-    ps.credentialVersionSlot,
-    ps.policyVersionSlot,
-  ]);
-}
-
 /** Convenience: the three public identifiers for a wallet's private state. */
 export function identifiers(
   ps: Pick<ProofGatePrivateState, 'subjectPubX' | 'subjectPubY' | 'issuerPubX' | 'issuerPubY' | 'credentialId'>,

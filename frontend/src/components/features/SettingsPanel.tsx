@@ -17,7 +17,7 @@ export function SettingsPanel({ navigate }: { navigate: (route: string) => void 
   const rows = [
     { k: 'Network', v: NETWORK },
     { k: 'Indexer', v: INDEXER_URL },
-    { k: 'Configured contract', v: CONTRACT_ADDRESS || '— (deploy a demo instance)' },
+    { k: 'Configured contract', v: CONTRACT_ADDRESS || '— (not configured)' },
     { k: 'Session contract', v: address ?? '—' },
   ];
 

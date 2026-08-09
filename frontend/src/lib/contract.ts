@@ -7,14 +7,13 @@
 import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 import {
   findDeployedContract,
-  deployContract,
   type ContractProviders,
 } from '@midnight-ntwrk/midnight-js-contracts';
 import { asContractAddress } from '@midnight-ntwrk/midnight-js-types';
 import type { Contract as ProofGateContract, Witnesses } from '../../../managed/proofgate/contract/index.js';
 import * as ProofGateContractModule from '../../../managed/proofgate/contract/index.js';
 
-import { DEFAULT_DOMAIN, createWitnesses, type ProofGatePrivateState } from './proofgate';
+import { createWitnesses, type ProofGatePrivateState } from './proofgate';
 import type { ProofGateProviders } from './providers';
 
 export const PRIVATE_STATE_ID = 'proofGatePrivateState';
@@ -59,29 +58,6 @@ export function connectToDeployedProofGate(
     privateStateId: PRIVATE_STATE_ID,
     initialPrivateState,
   });
-}
-
-/**
- * Deploy a fresh ProofGate contract from this browser session (demo admin).
- *
- * The constructor is called with the canonical instance domain and the admin
- * commitment of the session's `adminSecret`; the domain MUST be
- * `DEFAULT_DOMAIN` so the in-browser demo credential (bound to that domain)
- * is valid on the deployed contract. Returns the deployed contract address.
- */
-export async function deployProofGateFromWallet(
-  providers: ProofGateProviders,
-  initialPrivateState: ProofGatePrivateState,
-): Promise<string> {
-  const contractProviders = providers as ContractProviders<ProofGateContract<ProofGatePrivateState>>;
-  const adminPk = ProofGateContractModule.pureCircuits.adminKey(initialPrivateState.adminSecret);
-  const deployed = await deployContract(contractProviders, {
-    compiledContract: compiledProofGate,
-    args: [DEFAULT_DOMAIN, adminPk],
-    privateStateId: PRIVATE_STATE_ID,
-    initialPrivateState,
-  });
-  return deployed.deployTxData.public.contractAddress;
 }
 
 /** The compiled contract's `ledger` view, used to render public state. */

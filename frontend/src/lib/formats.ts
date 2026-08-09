@@ -134,7 +134,6 @@ export const CIRCUIT_LABELS: Record<string, string> = {
   registerIssuer: 'Register issuer',
   setIssuerStatus: 'Update issuer status',
   registerCredential: 'Register credential',
-  attestCompliance: 'Attest compliance',
   revokeCredential: 'Revoke credential',
   unrevokeCredential: 'Un-revoke credential',
   setSubjectStatus: 'Update subject status',

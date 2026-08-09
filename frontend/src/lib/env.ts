@@ -81,7 +81,21 @@ function resolveNetworkValue(): ProofGateNetwork {
 
 export const NETWORK: ProofGateNetwork = resolveNetworkValue();
 
-export const CONTRACT_ADDRESS = (import.meta.env.VITE_CONTRACT_ADDRESS ?? '').trim();
+/**
+ * The live ProofGate deployment on Midnight Preview (deployed 2026-08-08,
+ * recorded in `.midnight-state.json`). Used as the default contract address so
+ * the app always targets the real deployment instead of silently creating an
+ * ephemeral "demo instance" whenever `VITE_CONTRACT_ADDRESS` is unset.
+ *
+ * Override per-deployment via `VITE_CONTRACT_ADDRESS` in `.env.local`.
+ */
+export const PREVIEW_CONTRACT_ADDRESS =
+  'c1a42ae0c36cc5a2c420cc5c84d3b1a4147f3427fd4514c99835d5918e6d1f67';
+
+export const CONTRACT_ADDRESS = (
+  import.meta.env.VITE_CONTRACT_ADDRESS ??
+  (NETWORK === 'preview' ? PREVIEW_CONTRACT_ADDRESS : '')
+).trim();
 
 const PRESET = NETWORK_PRESETS[NETWORK];
 

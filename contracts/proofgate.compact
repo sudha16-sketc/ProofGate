@@ -10,22 +10,6 @@
 //   eligibility into an enforceable one-time permit that third-party dApps can
 //   verify and consume.
 //
-//   The flow is deliberately split into three independent ZK circuits so that
-//   each stays small:
-//     1. registerCredential — identity enrollment. Proves the issuer
-//        signature, possession of the subject key, binding of every signed
-//        field, and current validity (not future/expired/revoked/duplicate).
-//        Stores a commitment to the signed claims. NO policy evaluation.
-//     2. attestCompliance — selective disclosure. Proves the *enrolled* claims
-//        satisfy the *currently active* policy (age, KYC level, jurisdiction,
-//        schema + policy version) without revealing them, and stamps the
-//        subject as compliant for that policy version.
-//     3. requestPermit/consumePermit — cheap access control gated on the
-//        attested policy version and one-time permit consumption.
-//   Registration is therefore minimal and never needs repeating when policy
-//   changes; compliance is re-proven per policy version, and permits are the
-//   enforceable one-shot authorization.
-//
 // SIGNATURE SCHEME (Schnorr over Jubjub, verified IN-CIRCUIT):
 //   * Keygen:  sk_I <-_R [0, r);  P_I = sk_I * G
 //   * Sign(m): k <-_R [0, r);  R = k * G;
@@ -100,16 +84,6 @@ export struct Subject {
   issuerId: Bytes<32>,
   kycLevel: Uint<8>,
   policyVersion: Uint<8>,
-  // Commitment to the signed compliance-relevant claims (age, jurisdiction,
-  // kyc level, credential version, policy version). Computed in-circuit at
-  // registration from the signature-verified slots; recomputed and compared by
-  // attestCompliance so the claims proven against the active policy are exactly
-  // the claims enrolled on-chain. The raw claims are never stored.
-  claimCommitment: Bytes<32>,
-  // Policy version for which the subject has proven compliance (attestCompliance).
-  // 0 = enrolled but not yet attested; permits require attestedPolicyVersion ==
-  // the active policy version, so compliance is re-proven when policy changes.
-  attestedPolicyVersion: Uint<8>,
   expiresAt: Uint<64>,
   registeredAt: Uint<64>,
 }
@@ -260,48 +234,32 @@ export circuit checkPossession(): [] {
 }
 
 // ---------------------------------------------------------------------------
-// COMPLIANCE — selective-disclosure attestation, bound to the enrolled subject.
-// The user proves their signed claims satisfy the *currently active* policy
-// WITHOUT revealing any claim (age, jurisdiction, etc.). On success the
-// subject's attested policy version is stamped; permit issuance requires it to
-// equal the active policy version, so compliance is re-proven whenever policy
-// changes. This is deliberately separate from registerCredential: enrollment
-// proves identity/binding/validity, compliance proves policy eligibility.
+// CREDENTIAL PREDICATES — asserted over the *signed* attributes.
 // ---------------------------------------------------------------------------
 
-// Commitment to the compliance-relevant *signed* claims. Every element is a
-// slot already bound to the Schnorr signature, so this pins the claims to the
-// enrolled credential.
-circuit signedClaimCommitment(): Bytes<32> {
-  return persistentHash<Vector<5, Bytes<32>>>([
-    ageSlot(),
-    jurisdiction(),
-    kycLevelSlot(),
-    credentialVersionSlot(),
-    policyVersionSlot(),
-  ]);
-}
-
-export circuit attestCompliance(juris: Vector<8, Bytes<32>>): [] {
-  const pk = disclose(subjectKey(contractDomain.read(), disclose(subjectPkX()), disclose(subjectPkY())));
-  assert(subjects.member(pk), "credential not registered");
-  const subject = subjects.lookup(pk);
-  assert(subject.status == SubjectStatus.ACTIVE, "credential not active");
-  assert(!revoked.member(subject.credId), "credential revoked");
-  // Only the owner of the enrolled subject key can attest for it.
-  checkPossession();
-
-  // Numeric slots must match their Uint witnesses (all were signed).
+export circuit checkCredential(juris: Vector<8, Bytes<32>>, domain: Bytes<32>): [] {
+  // Numeric slots must match their Uint witnesses (both are signed).
   assert(credentialVersionSlot() as Field == credentialVersion() as Field, "credential version slot mismatch");
   assert(ageSlot() as Field == age() as Field, "age attribute not bound to signature");
   assert(kycLevelSlot() as Field == kycLevel() as Field, "kyc level not bound to signature");
+  assert(issuedAtSlot() as Field == issuedAt() as Field, "issuedAt not bound to signature");
+  assert(expiresAtSlot() as Field == expiresAt() as Field, "expiresAt not bound to signature");
   assert(policyVersionSlot() as Field == policyVersion() as Field, "policy version not bound to signature");
 
-  // The claims proven here are exactly the claims enrolled at registration.
-  assert(signedClaimCommitment() == subject.claimCommitment, "claims do not match enrolled credential");
+  // The signed issuer id must equal the commitment of the signing public key.
+  assert(signedIssuerId() == issuerId(disclose(issuerPkX()), disclose(issuerPkY())), "issuer id mismatch");
 
-  // A policy must be active and must be the one the claims reference.
+  // The signed subject commitment must equal this instance's pseudonym.
+  assert(subjectCommitment() == subjectKey(domain, disclose(subjectPkX()), disclose(subjectPkY())), "subject commitment mismatch");
+
+  // Time sanity: expiry strictly after issue.
+  assert(expiresAt() > issuedAt(), "expiry not after issue");
+
+  // A policy must have been activated.
   assert(!(activePolicyId.read() == pad(32, "")), "no active policy");
+
+  // The credential must reference the currently active policy. An old policy
+  // never silently becomes a new policy.
   assert(policyVersion() == activePolicyVersion.read(), "policy version mismatch");
 
   // Credential schema compatibility with the active policy.
@@ -319,19 +277,6 @@ export circuit attestCompliance(juris: Vector<8, Bytes<32>>): [] {
     j == juris[4] || j == juris[5] || j == juris[6] || j == juris[7],
     "jurisdiction not allowed"
   );
-
-  subjects.insert(pk, Subject {
-    status: SubjectStatus.ACTIVE,
-    credId: subject.credId,
-    issuerId: subject.issuerId,
-    kycLevel: subject.kycLevel,
-    policyVersion: subject.policyVersion,
-    expiresAt: subject.expiresAt,
-    registeredAt: subject.registeredAt,
-    claimCommitment: subject.claimCommitment,
-    attestedPolicyVersion: disclose(activePolicyVersion.read()),
-  });
-  seq.increment(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -445,8 +390,6 @@ export circuit setSubjectStatus(subjectPk: Bytes<32>, status: SubjectStatus): []
     issuerId: subject.issuerId,
     kycLevel: subject.kycLevel,
     policyVersion: subject.policyVersion,
-    claimCommitment: subject.claimCommitment,
-    attestedPolicyVersion: subject.attestedPolicyVersion,
     expiresAt: subject.expiresAt,
     registeredAt: subject.registeredAt,
   });
@@ -455,46 +398,24 @@ export circuit setSubjectStatus(subjectPk: Bytes<32>, status: SubjectStatus): []
 
 // ---------------------------------------------------------------------------
 // USER: register a credential issued by an active registered issuer.
-// This is the *registration* circuit: it proves, without revealing any
-// attribute or the signature:
+// Proves, without revealing any attribute or the signature:
 //   * the Schnorr signature verifies under the registered issuer key,
 //   * the caller owns the signed subject key,
 //   * every signed field is bound (issuer id, subject commitment, slots),
 //   * the credential is valid now (not future-issued, not expired),
+//   * the referenced policy is the active one and the claims satisfy it,
 //   * the credential and the subject are not already registered/revoked.
-// It does NOT evaluate the active compliance policy — policy eligibility is
-// proven separately by attestCompliance (see below), so registration stays
-// minimal and policy changes never require re-registration.
 // ---------------------------------------------------------------------------
 
-export circuit registerCredential(): [] {
+export circuit registerCredential(juris: Vector<8, Bytes<32>>): [] {
   const id = disclose(issuerId(disclose(issuerPkX()), disclose(issuerPkY())));
   assert(issuers.member(id), "credential issuer not registered");
   assert(issuers.lookup(id).status == IssuerStatus.ACTIVE, "credential issuer not active");
   checkSignature(contractDomain.read());
   checkPossession();
-
-  // Credential binding — tie the signed document to the keys used here.
-  assert(signedIssuerId() == id, "issuer id mismatch");
-  assert(
-    subjectCommitment() == subjectKey(contractDomain.read(), disclose(subjectPkX()), disclose(subjectPkY())),
-    "subject commitment mismatch"
-  );
-  assert(credentialVersionSlot() as Field == credentialVersion() as Field, "credential version slot mismatch");
-  assert(ageSlot() as Field == age() as Field, "age attribute not bound to signature");
-  assert(kycLevelSlot() as Field == kycLevel() as Field, "kyc level not bound to signature");
-  assert(issuedAtSlot() as Field == issuedAt() as Field, "issuedAt not bound to signature");
-  assert(expiresAtSlot() as Field == expiresAt() as Field, "expiresAt not bound to signature");
-  assert(policyVersionSlot() as Field == policyVersion() as Field, "policy version not bound to signature");
-
-  // Credential integrity: expiry strictly after issue.
-  assert(expiresAt() > issuedAt(), "expiry not after issue");
-
+  checkCredential(juris, contractDomain.read());
   assert(!k.blockTimeLessThan(disclose(issuedAt())), "credential not yet valid");
   assert(k.blockTimeLessThan(disclose(expiresAt())), "credential expired");
-
-  // Enrollment. Compliance against the active policy is proven separately by
-  // attestCompliance before any permit can be requested.
   const pk = disclose(subjectKey(contractDomain.read(), disclose(subjectPkX()), disclose(subjectPkY())));
   assert(!subjects.member(pk), "already registered");
   const cid = disclose(credentialId());
@@ -507,8 +428,6 @@ export circuit registerCredential(): [] {
     policyVersion: disclose(policyVersion()),
     expiresAt: disclose(expiresAt()),
     registeredAt: seq.read(),
-    claimCommitment: disclose(signedClaimCommitment()),
-    attestedPolicyVersion: 0,
   });
   seq.increment(1);
 }
@@ -526,7 +445,7 @@ export circuit requestPermit(feature: Bytes<32>, expiresAt: Uint<64>, expiresAtS
   assert(subject.status == SubjectStatus.ACTIVE, "credential not active");
   assert(!revoked.member(subject.credId), "credential revoked");
   assert(k.blockTimeLessThan(disclose(subject.expiresAt)), "credential expired");
-  assert(subject.attestedPolicyVersion == activePolicyVersion.read(), "credential not attested compliant");
+  assert(subject.policyVersion == activePolicyVersion.read(), "credential policy no longer active");
   assert(expiresAtSlot as Field == expiresAt as Field, "permit expiry slot mismatch");
   assert(k.blockTimeLessThan(disclose(expiresAt)), "permit expiry must be in the future");
   const permitId = disclose(

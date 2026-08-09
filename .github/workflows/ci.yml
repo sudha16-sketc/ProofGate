@@ -45,10 +45,10 @@ jobs:
           test -f managed/proofgate/compiler/contract-info.json
           test -f managed/proofgate/contract/index.js
           test -f managed/proofgate/keys/registerCredential.prover
-          test -f managed/proofgate/keys/attestCompliance.prover
+          test -f managed/proofgate/keys/checkCredential.prover
           test -f managed/proofgate/keys/setPolicy.prover
           test -f frontend/public/keys/registerCredential.prover
-          test -f frontend/public/zkir/attestCompliance.zkir
+          test -f frontend/public/zkir/checkCredential.zkir
 
   test:
     name: Typecheck, tests and frontend build

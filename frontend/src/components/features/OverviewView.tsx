@@ -33,7 +33,7 @@ export function OverviewView({ navigate }: { navigate: (route: string) => void }
     <>
       <section className="hero">
         <span className="hero-eyebrow">
-          <StatusBadge tone={ready ? 'ok' : 'accent'}>{ready ? 'Live demo instance' : 'Connect to begin'}</StatusBadge>
+          <StatusBadge tone={ready ? 'ok' : 'accent'}>{ready ? 'Connected' : 'Connect to begin'}</StatusBadge>
         </span>
         <h1>
           Prove eligibility. <span className="accent">Not identity.</span>

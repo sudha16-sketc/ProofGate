@@ -36,7 +36,6 @@ export type SubjectRow = {
   issuerId: string;
   kycLevel: bigint;
   policyVersion: bigint;
-  attestedPolicyVersion: bigint;
   expiresAt: bigint;
   registeredAt: bigint;
 };
@@ -110,7 +109,6 @@ export function toLedgerView(state: { data: unknown }): LedgerView {
       issuerId: hex(s.issuerId),
       kycLevel: s.kycLevel,
       policyVersion: s.policyVersion,
-      attestedPolicyVersion: s.attestedPolicyVersion,
       expiresAt: s.expiresAt,
       registeredAt: s.registeredAt,
     })),

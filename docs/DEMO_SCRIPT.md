@@ -34,7 +34,7 @@
 ### 0:10–0:20 — Connect wallet
 
 **Action:** Click **Connect wallet** → choose **Lace** → approve in the wallet.
-The session boots and the overview shows "Live demo instance" with the policy
+The session boots and the overview shows "Connected" with the policy
 metrics (minimum age 18, KYC ≥ 2).
 
 **Narration:**

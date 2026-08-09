@@ -1,9 +1,8 @@
 import { useMidnight } from '../../hooks/useMidnight';
-import { useSessionBusy, useSessionMessage, useSessionStatus, deployDemoContract, bootSession } from '../../store/session';
+import { useSessionBusy, useSessionMessage, useSessionStatus, useSessionError, bootSession } from '../../store/session';
 import { CONTRACT_ADDRESS } from '../../lib/env';
 import { Button } from '../ui/Button';
 import { StatusBadge } from '../ui/Badge';
-import { IconShieldLock } from '../icons';
 
 /**
  * Session readiness card shown on the overview hero (and reused elsewhere).
@@ -15,6 +14,7 @@ export function SetupCard() {
   const status = useSessionStatus();
   const busy = useSessionBusy();
   const message = useSessionMessage();
+  const error = useSessionError();
 
   if (state.status !== 'connected') return null;
   if (status === 'ready') return null;
@@ -36,14 +36,11 @@ export function SetupCard() {
       {status === 'no-contract' && (
         <>
           <p style={{ marginTop: 8 }}>
-            No contract address is configured (<code className="mono">VITE_CONTRACT_ADDRESS</code>). Deploy a fresh
-            demo ProofGate instance from this wallet — your session secret becomes the admin, so every admin action
-            below is available.
+            No contract address is configured (<code className="mono">VITE_CONTRACT_ADDRESS</code>). The app connects
+            only to an existing deployed ProofGate contract — set{' '}
+            <code className="mono">VITE_CONTRACT_ADDRESS</code> to the deployed address and reload.
           </p>
           <div className="row-wrap" style={{ marginTop: 12 }}>
-            <Button variant="primary" onClick={() => void deployDemoContract()} loading={busy !== null} icon={<IconShieldLock size={16} />}>
-              Deploy demo instance
-            </Button>
             {CONTRACT_ADDRESS && (
               <Button variant="ghost" onClick={() => void bootSession()} loading={busy !== null}>
                 Retry connect
@@ -55,7 +52,7 @@ export function SetupCard() {
 
       {status === 'error' && (
         <>
-          <p style={{ marginTop: 8 }}>{message?.text ?? 'The session could not start.'}</p>
+          <p style={{ marginTop: 8 }}>{error ?? message?.text ?? 'The session could not start.'}</p>
           <div className="row-wrap" style={{ marginTop: 12 }}>
             <Button variant="primary" onClick={() => void bootSession()} loading={busy !== null}>
               Retry session

@@ -3,7 +3,7 @@
 // This is a thin, non-visual layer over the existing Midnight wiring:
 //   - builds providers from the wallet's own configuration,
 //   - seeds the in-memory demo private state,
-//   - connects to the configured contract address (or deploys a demo instance),
+//   - connects to the configured (pre-deployed) contract address,
 //   - polls the public ledger (10 s) and derives public session metadata,
 //   - records this session's transaction activity.
 //
@@ -38,7 +38,6 @@ import {
 import { buildProofGateProviders, type ProofGateProviders } from '../lib/providers';
 import {
   connectToDeployedProofGate,
-  deployProofGateFromWallet,
   PRIVATE_STATE_ID,
   type ProofGateContractHandle,
 } from '../lib/contract';
@@ -325,39 +324,6 @@ export async function bootSession(): Promise<void> {
   }
 }
 
-/**
- * Deploy a fresh ProofGate from this wallet (demo admin). The session secret
- * becomes the contract admin, so the demo admin actions are available.
- */
-export async function deployDemoContract(): Promise<boolean> {
-  const providers = providersRef;
-  const privateState = privateStateRef;
-  if (!providers || !privateState) return false;
-  setBusy('Deploying ProofGate (demo admin)');
-  clearMessage();
-  try {
-    const addr = await deployProofGateFromWallet(providers, privateState);
-    const handle = await connectToDeployedProofGate(providers, addr, privateState);
-    handleRef = handle;
-    _address = addr;
-    await refreshLedger();
-    _status = 'ready';
-    startPolling();
-    logActivity({ circuit: 'deploy', action: 'Deploy contract', status: 'confirmed', txId: undefined });
-    setMessage({
-      kind: 'ok',
-      text: `Deployed ProofGate at ${addr}. Set VITE_CONTRACT_ADDRESS to this value to reuse it across reloads.`,
-    });
-    return true;
-  } catch (err) {
-    setMessage({ kind: 'error', text: `Deploy failed: ${friendlyError(err)}` });
-    return false;
-  } finally {
-    setBusy(null);
-    emit();
-  }
-}
-
 /** Reset the session (used on wallet disconnect). */
 export function resetSession(): void {
   stopPolling();
@@ -483,16 +449,9 @@ export async function runDemoSetup(): Promise<boolean> {
 }
 
 export async function registerCredential(): Promise<TxResult | null> {
-  return runContractCall({ circuit: 'registerCredential', label: 'Register credential' }, async (_p, handle) => {
-    const tx = await handle.callTx.registerCredential();
-    return { txId: tx.public.txId };
-  });
-}
-
-export async function attestCompliance(): Promise<TxResult | null> {
   const juris = jurisdictionSlots(JURISDICTIONS);
-  return runContractCall({ circuit: 'attestCompliance', label: 'Attest compliance' }, async (_p, handle) => {
-    const tx = await handle.callTx.attestCompliance(juris);
+  return runContractCall({ circuit: 'registerCredential', label: 'Register credential' }, async (_p, handle) => {
+    const tx = await handle.callTx.registerCredential(juris);
     return { txId: tx.public.txId };
   });
 }
