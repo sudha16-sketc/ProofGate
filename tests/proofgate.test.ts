@@ -358,6 +358,29 @@ describe('state transitions — the ProofGate lifecycle', () => {
     );
   });
 
+  it('accepts a credential exactly at the age boundary (age == minimumAge)', () => {
+    // Policy boundary condition: minimumAge = DEFAULT_MIN_AGE (18). A
+    // credential with age exactly 18 must be attested compliant — the check is
+    // `age >= minimumAge`, and the exact value is proven without disclosure.
+    const boundary = issueCredential({
+      issuerSk: ISSUER_SK,
+      subjectSk: randScalar(),
+      age: DEFAULT_MIN_AGE,
+      jurisdiction: 'US',
+    });
+    const pgBoundary = deployProofGate(DEFAULT_DOMAIN, boundary);
+    registerDemoIssuer(pgBoundary, ISSUER_SK);
+    setDefaultPolicy(pgBoundary);
+    registerCred(pgBoundary);
+    expect(pgBoundary.call('attestCompliance', jurisdictionSlots(JURISDICTIONS)).result).toEqual([]);
+    expect(pgBoundary.ledger().subjects.size()).toBe(1n);
+    // The subject record's public `kycLevel`/`policyVersion` fields are still
+    // the only numeric values disclosed — age is never stored on-chain.
+    const [, subject] = Array.from(pgBoundary.ledger().subjects)[0]!;
+    expect((subject as Subject).kycLevel).toBe(DEFAULT_KYC_LEVEL);
+    expect((subject as Subject).attestedPolicyVersion).toBe(DEFAULT_POLICY_VERSION);
+  });
+
   it('refuses compliance attestation with insufficient KYC level (signed)', () => {
     const low = issueCredential({
       issuerSk: ISSUER_SK,

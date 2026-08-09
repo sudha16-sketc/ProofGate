@@ -1,32 +1,36 @@
-# React + TypeScript + Vite
+# ProofGate — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + TypeScript + Vite web UI for ProofGate, the privacy-preserving compliance gateway demo (Midnight Preview).
 
-Currently, two official plugins are available:
+## What it does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Loads a `connected`, `unlocked` Midnight wallet via `@midnight-ntwrk/dapp-connector-api`
+- Compiles the on-chain **PGM** contract (compiled Compact code + ZK artifacts live in `../managed`, repo root)
+- Lets the user register with an **FIO-verifiable business identity** (`did:pgm` + X25519 keys)
+- Displays the on-chain **ReputationLedger** (accrued attestations) and the **DisclosureProvider** (selective identity claims, one per FIO request)
+- Sends transactions to the local node and queries the indexer to build the claim history
 
-## React Compiler
+## Quick start
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Prereqs: the repo root has already run `npm install` and the Midnight-managed build (`.mjs` wasm/bundle artifacts in `../managed`).
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npm run dev        # sync:zk + vite dev server
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Build for production:
+
+```sh
+npm run build      # sync:zk + tsc -b + vite build
+npm run preview
+```
+
+## Notes
+
+- `npm run dev` first runs `scripts/sync-zk.mjs`, which copies the compiled contract
+  and ZK prover/verifier artifacts from the repo-root `managed/` directory into
+  `public/zk` so the browser bundle can fetch them.
+- `vite.config.ts` is wired for the Midnight stack: `vite-plugin-wasm`,
+  `vite-plugin-top-level-await`, a single shared copy of the compact runtime
+  (deduped via `resolve.dedupe`), and browser polyfills for Node-only imports.

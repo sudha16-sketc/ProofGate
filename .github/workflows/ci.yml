@@ -1,0 +1,82 @@
+name: CI
+
+# Continuous integration for ProofGate.
+#
+#   contract — installs the official Midnight Compact compiler (pinned to the
+#              same version that produced the committed artifacts) and
+#              recompiles the Compact contract, then verifies the committed
+#              compiled artifacts (TypeScript bindings + ZK keys) are present.
+#   test     — installs dependencies, typechecks, runs the headless contract
+#              test suite (no Docker, no proof server, no network), and builds
+#              the production frontend bundle.
+#
+# The Compact compile step uses `--skip-zk` so CI validates the source and the
+# generated bindings/circuits quickly; the full prover-key generation
+# (`npm run compile`) is intentionally run locally because it produces ~72 MB
+# of key material. The headless tests exercise the committed artifacts that
+# actually back the deployed Preview contract.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contract:
+    name: Compile Compact contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Compact compiler (0.31.1)
+        uses: midnightntwrk/setup-compact-action@v1
+        with:
+          compact-version: '0.31.1'
+
+      - name: Verify compiler version
+        run: compact compile --version
+
+      - name: Compile the Compact contract (skip prover-key generation)
+        run: compact compile --skip-zk contracts/proofgate.compact /tmp/proofgate-compiled
+
+      - name: Verify committed compiled artifacts are present
+        run: |
+          test -f managed/proofgate/compiler/contract-info.json
+          test -f managed/proofgate/contract/index.js
+          test -f managed/proofgate/keys/registerCredential.prover
+          test -f managed/proofgate/keys/attestCompliance.prover
+          test -f managed/proofgate/keys/setPolicy.prover
+          test -f frontend/public/keys/registerCredential.prover
+          test -f frontend/public/zkir/attestCompliance.zkir
+
+  test:
+    name: Typecheck, tests and frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run headless contract tests
+        run: npm test
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Build the frontend
+        run: npm run frontend:build
+
+      - name: Verify the frontend bundle references the Preview contract
+        run: grep -q "c1a42ae0c36cc5a2c420cc5c84d3b1a4147f3427fd4514c99835d5918e6d1f67" frontend/.env.example
