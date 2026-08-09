@@ -21,7 +21,6 @@
     "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
     "@midnight-ntwrk/midnight-js-types": "4.1.1",
     "@midnight-ntwrk/midnight-js-utils": "4.1.1",
-    "@midnight-ntwrk/onchain-runtime-v3": "^3.0.0",
     "buffer": "^6.0.3",
     "fp-ts": "^2.16.11",
     "pino": "^10.3.1",
@@ -39,8 +38,6 @@
     "vite": "^7.3.6",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0"
-  },
-  "overrides": {
-    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
   }
+  
 }
