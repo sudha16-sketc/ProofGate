@@ -81,7 +81,10 @@ function PermitCard({
   busy: boolean;
   onUse: () => void;
 }) {
-const remaining = useCountdown(msUntil(permit.expiresAt));
+// `useCountdown` expects an absolute deadline in milliseconds since epoch.
+// `permit.expiresAt` is stored as unix seconds, so convert to ms.
+const deadlineMs = Number(permit.expiresAt) * 1000;
+const remaining = useCountdown(deadlineMs);
 
 const statusValid = permit.status === 0;
 const consumed = permit.status === 1;
