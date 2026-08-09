@@ -1,6 +1,6 @@
 // StateView — read-only view of the ProofGate public ledger via the indexer.
 //
-// Shows only *public* data (minAge, admin commitment, issuers, subject
+// Shows only *public* data (minAge, owner commitment, issuers, subject
 // pseudonyms, permit statuses). No private inputs are ever queried or shown.
 
 import { useEffect, useRef, useState } from 'react';
@@ -29,7 +29,8 @@ function toView(state: { data: unknown }): LedgerView {
   const l = ProofGateContractModule.ledger(state.data as never);
   return {
     contractDomain: hex(l.contractDomain),
-    adminPk: hex(l.adminPk),
+    owner: hex(l.owner),
+    deployerId: hex(l.deployerId),
     minimumAge: l.minimumAge,
     requiredKycLevel: l.requiredKycLevel,
     activePolicyId: hex(l.activePolicyId),

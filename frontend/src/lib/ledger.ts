@@ -7,7 +7,7 @@
 import * as ProofGateContractModule from '../../../managed/proofgate/contract/index.js';
 import type { ProofGateProviders } from './providers';
 import { hex, sleep, type ProofGatePrivateState } from './proofgate';
-import { subjectKey } from './schnorr';
+import { deployerId, subjectKey } from './schnorr';
 
 export const ZEROS = '00'.repeat(32);
 
@@ -54,7 +54,8 @@ export type PermitRow = {
 
 export type LedgerView = {
   contractDomain: string;
-  adminPk: string;
+  owner: string;
+  deployerId: string;
   minimumAge: bigint;
   requiredKycLevel: bigint;
   requiredCredentialVersion: bigint;
@@ -86,7 +87,8 @@ export function toLedgerView(state: { data: unknown }): LedgerView {
   const l = ProofGateContractModule.ledger(state.data as never);
   return {
     contractDomain: hex(l.contractDomain),
-    adminPk: hex(l.adminPk),
+    owner: hex(l.owner),
+    deployerId: hex(l.deployerId),
     minimumAge: l.minimumAge,
     requiredKycLevel: l.requiredKycLevel,
     requiredCredentialVersion: l.requiredCredentialVersion,
@@ -175,8 +177,10 @@ export type SessionMeta = {
   mySubject: SubjectRow | null;
   /** Permit records whose holder is this wallet's pseudonym. */
   myPermits: PermitRow[];
-  /** True when this session's admin secret matches the deployed admin commitment. */
-  isAdmin: boolean;
+  /** True when this session holds the deployed contract's owner secret. */
+  isOwner: boolean;
+  /** True when this session's wallet address deployed the contract. */
+  isDeployer: boolean;
   /** True when the demo credential's issuer is registered and ACTIVE on-chain. */
   demoIssuerActive: boolean;
   /** True when a policy has been activated on-chain. */
@@ -193,6 +197,7 @@ const ZERO_BYTES = new Uint8Array(32);
 export function deriveMeta(
   ledger: LedgerView | null,
   privateState: ProofGatePrivateState | null,
+  walletAddress?: string | null,
 ): SessionMeta | null {
   if (!ledger || !privateState) return null;
 
@@ -208,11 +213,16 @@ export function deriveMeta(
   const mySubject = ledger.subjects.find((s) => s.pk === pseudonym) ?? null;
   const myPermits = ledger.permits.filter((p) => p.holder === pseudonym).sort((a, b) => Number(b.issuedAt - a.issuedAt));
 
-  // Admin detection: compare the commitment of this session's admin secret to
-  // the public admin commitment stored on-chain. This is a deterministic,
+  // Owner detection: compare the commitment of this session's owner secret to
+  // the public owner commitment stored on-chain. This is a deterministic,
   // public-data check (no secret is ever revealed).
-  const adminCommitment = hex(ProofGateContractModule.pureCircuits.adminKey(privateState.adminSecret));
-  const isAdmin = ledger.adminPk !== ZEROS && ledger.adminPk === adminCommitment;
+  const ownerCommitment = hex(ProofGateContractModule.pureCircuits.ownerKey(privateState.ownerSecret));
+  const isOwner = ledger.owner !== ZEROS && ledger.owner === ownerCommitment;
+
+  // Deployer detection: the deployer's wallet address is hashed into a public
+  // deployer identity at deploy time; re-derive it from this wallet's address.
+  const isDeployer =
+    !!walletAddress && ledger.deployerId !== ZEROS && ledger.deployerId === hex(deployerId(walletAddress));
 
   // Demo issuer key (sk = 42) — used to determine whether the demo setup step
   // can register a credential. Only the on-chain issuer registry is consulted.
@@ -228,7 +238,8 @@ export function deriveMeta(
     myPseudonym: pseudonym,
     mySubject,
     myPermits,
-    isAdmin,
+    isOwner,
+    isDeployer,
     demoIssuerActive,
     policyActive: ledger.activePolicyId !== ZEROS && ledger.activePolicyVersion > 0n,
     activePolicyVersion: ledger.activePolicyVersion,

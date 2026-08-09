@@ -9,7 +9,7 @@ export function EmptyState({
 }: {
   icon?: React.ReactNode;
   title: string;
-  description: string;
+  description: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
 }) {

@@ -79,7 +79,7 @@ export function TrustExplorer() {
               <h3 style={{ margin: 0 }}>What the ledger stores</h3>
             </div>
             <ul className="stack-sm" style={{ gap: 8, marginTop: 12 }}>
-              {['Pseudonym: subjectKey(domain, pk)', 'Commitments: admin, jurisdiction list', 'Policy parameters and status flags', 'Permit records: holder, feature, expiry, status'].map((t) => (
+              {['Pseudonym: subjectKey(domain, pk)', 'Commitments: owner, deployer, jurisdiction list', 'Policy parameters and status flags', 'Permit records: holder, feature, expiry, status'].map((t) => (
                 <li key={t} className="row" style={{ gap: 8 }}>
                   <IconShieldCheck size={13} className="faint" />
                   <span>{t}</span>

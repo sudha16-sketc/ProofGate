@@ -2,9 +2,9 @@
 //
 // Every action here is a zero-knowledge proof that the wallet builds in-app
 // against the configured, already-deployed ProofGate contract:
-//   - "Activate demo policy"      → admin action; publishes the compliance
+//   - "Activate demo policy"      → owner action; publishes the compliance
 //                                   policy (min age, KYC level, jurisdictions).
-//   - "Register demo issuer"      → admin action; publishes a trusted issuer key.
+//   - "Register demo issuer"      → owner action; publishes a trusted issuer key.
 //   - "Register credential"       → proves ownership of a valid issuer-signed
 //                                   credential satisfying the active policy,
 //                                   WITHOUT revealing age, jurisdiction, or the
@@ -49,7 +49,8 @@ import * as ProofGateContractModule from '../../../managed/proofgate/contract/in
 
 export type LedgerView = {
   contractDomain: string;
-  adminPk: string;
+  owner: string;
+  deployerId: string;
   minimumAge: bigint;
   requiredKycLevel: bigint;
   activePolicyId: string;
@@ -98,7 +99,8 @@ async function fetchLedgerView(providers: ProofGateProviders, address: string): 
   const l = ProofGateContractModule.ledger(state.data);
   return {
     contractDomain: hex(l.contractDomain),
-    adminPk: hex(l.adminPk),
+    owner: hex(l.owner),
+    deployerId: hex(l.deployerId),
     minimumAge: l.minimumAge,
     requiredKycLevel: l.requiredKycLevel,
     activePolicyId: hex(l.activePolicyId),
@@ -373,7 +375,7 @@ export function PermitGate({ onContractAddressChange }: Props) {
           )}
 
           <div className="action-group">
-            <h3>Admin (demo)</h3>
+            <h3>Owner (demo)</h3>
             <button onClick={handleActivatePolicy}>Activate demo policy</button>
             <button onClick={handleRegisterIssuer}>Register demo issuer</button>
           </div>

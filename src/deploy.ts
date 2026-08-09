@@ -40,6 +40,8 @@ import {
   DEFAULT_DOMAIN,
   createWitnesses,
   demoPrivateState,
+  deployerId,
+  ownerSecretFromSeed,
   type ProofGatePrivateState,
 } from './proofgate';
 
@@ -285,8 +287,20 @@ async function main() {
 
   const privateState: ProofGatePrivateState = demoPrivateState(SEED);
   const witnesses = createWitnesses(privateState);
-  const adminPk = ProofGate.pureCircuits.adminKey(privateState.adminSecret);
+  // Ownership bootstrap: the deployer's owner secret is derived deterministically
+  // from the deploy seed, so the deployer *is* the initial owner and the CLI can
+  // re-derive it for every owner action. Only the commitment reaches the chain.
+  const ownerSecret = ownerSecretFromSeed(SEED);
+  const owner = ProofGate.pureCircuits.ownerKey(ownerSecret);
+  const deployerIdentity = deployerId(address.toString());
   const contractDomain = DEFAULT_DOMAIN;
+
+  console.log('  ── Ownership ────────────────────────────────────────────────');
+  console.log(`  owner                : ${Buffer.from(owner).toString('hex')}`);
+  console.log(`  ownerSecret          : derived from seed (label "owner-sk") — kept off-chain`);
+  console.log(`  deployerId           : ${Buffer.from(deployerIdentity).toString('hex')}`);
+  console.log(`  deployer wallet      : ${address}`);
+  console.log('  ─────────────────────────────────────────────────────────────\n');
 
   console.log('  Setting up providers...');
   const providers = await createProviders(walletCtx);
@@ -313,7 +327,7 @@ async function main() {
     try {
       deployed = await deployContract(providers, {
         compiledContract: compiledContract as any,
-        args: [contractDomain, adminPk],
+        args: [contractDomain, owner, deployerIdentity],
         privateStateId: PRIVATE_STATE_ID,
         initialPrivateState: privateState,
       });

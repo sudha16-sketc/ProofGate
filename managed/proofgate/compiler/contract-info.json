@@ -4,7 +4,7 @@
   "runtime-version": "0.16.0",
   "circuits": [
     {
-      "name": "adminKey",
+      "name": "ownerKey",
       "pure": true,
       "proof": false,
       "arguments": [
@@ -140,12 +140,12 @@
       }
     },
     {
-      "name": "rotateAdmin",
+      "name": "transferOwnership",
       "pure": false,
       "proof": true,
       "arguments": [
         {
-          "name": "newAdminPk",
+          "name": "newOwner",
           "type": {
             "type-name": "Bytes",
             "length": 32
@@ -468,7 +468,7 @@
   ],
   "witnesses": [
     {
-      "name": "adminSecret",
+      "name": "ownerSecret",
       "arguments": [
       ],
       "result type": {
@@ -716,7 +716,7 @@
       }
     },
     {
-      "name": "adminPk",
+      "name": "owner",
       "index": 1,
       "exported": true,
       "storage": "Cell",
@@ -726,7 +726,7 @@
       }
     },
     {
-      "name": "activePolicyId",
+      "name": "deployerId",
       "index": 2,
       "exported": true,
       "storage": "Cell",
@@ -736,17 +736,17 @@
       }
     },
     {
-      "name": "activePolicyVersion",
+      "name": "activePolicyId",
       "index": 3,
       "exported": true,
       "storage": "Cell",
       "type": {
-        "type-name": "Uint",
-        "maxval": 255
+        "type-name": "Bytes",
+        "length": 32
       }
     },
     {
-      "name": "minimumAge",
+      "name": "activePolicyVersion",
       "index": 4,
       "exported": true,
       "storage": "Cell",
@@ -756,7 +756,7 @@
       }
     },
     {
-      "name": "requiredKycLevel",
+      "name": "minimumAge",
       "index": 5,
       "exported": true,
       "storage": "Cell",
@@ -766,7 +766,7 @@
       }
     },
     {
-      "name": "requiredCredentialVersion",
+      "name": "requiredKycLevel",
       "index": 6,
       "exported": true,
       "storage": "Cell",
@@ -776,8 +776,18 @@
       }
     },
     {
-      "name": "jurisdictionCommitment",
+      "name": "requiredCredentialVersion",
       "index": 7,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 255
+      }
+    },
+    {
+      "name": "jurisdictionCommitment",
+      "index": 8,
       "exported": true,
       "storage": "Cell",
       "type": {
@@ -787,7 +797,7 @@
     },
     {
       "name": "issuers",
-      "index": 8,
+      "index": 9,
       "exported": true,
       "storage": "Map",
       "key": {
@@ -851,7 +861,7 @@
     },
     {
       "name": "subjects",
-      "index": 9,
+      "index": 10,
       "exported": true,
       "storage": "Map",
       "key": {
@@ -922,7 +932,7 @@
     },
     {
       "name": "revoked",
-      "index": 10,
+      "index": 11,
       "exported": true,
       "storage": "Set",
       "type": {
@@ -932,7 +942,7 @@
     },
     {
       "name": "permits",
-      "index": 11,
+      "index": 12,
       "exported": true,
       "storage": "Map",
       "key": {
@@ -1009,7 +1019,7 @@
     },
     {
       "name": "seq",
-      "index": 12,
+      "index": 13,
       "exported": true,
       "storage": "Counter"
     }

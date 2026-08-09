@@ -1,12 +1,196 @@
 # ProofGate — Admin Bootstrap Procedure (Preview)
 
-**Contract:** `c1a42ae0c36cc5a2c420cc5c84d3b1a4147f3427fd4514c99835d5918e6d1f67`
+> **Status: RESOLVED (2026-08-09).** The original admin bootstrap was **blocked**: the
+> deployment's admin secret was generated as one-time random bytes in the deploy
+> process's memory and is **NOT recoverable** (see §7). This has been fixed at the
+> source by the **seed-derived owner + CLI execution model** (Option 1):
+>
+> - The contract now has an **owner** model: `export ledger owner` (commitment of an
+>   owner secret), a `deployerId` recorded at deploy time, and
+>   `transferOwnership(newOwner)` for governance handover.
+> - On deploy, the owner secret is derived **deterministically from the deploy wallet
+>   seed** (`ownerSecretFromSeed(seed)` = `deriveSecret(seed, 'owner-sk')`), so the
+>   deployer is the initial owner and the secret can never be lost. The CLI re-derives
+>   it from the same seed for every owner action.
+> - `deployerId(address)` publishes a deterministic commitment of the deployer's
+>   wallet address on-chain.
+>
+> The old `c1a42ae0` deployment (with the unrecoverable `adminPk`) is **incompatible
+> with the new schema** — redeploy with `npm run deploy`. This document is retained as
+> the forensic record of the failure and the diagnosis that drove the fix.
+
+**Contract (legacy, deprecated):** `c1a42ae0c36cc5a2c420cc5c84d3b1a4147f3427fd4514c99835d5918e6d1f67`
 **Deployed:** 2026-08-08T14:43:56Z by `mn_addr_preview1ee08n6m9hh4e36zk3ddpwul9fwjn9h38x2fr4upkpvud2ml03l9snf8q46`
-**On-chain `adminPk`:** `ed6bacf3f2feaf0826e3c2a638a834d7ff0b84018cf9a439fb8ee61a69f65435`
-**Status of this document:** **blocked.** The original admin secret is **NOT recoverable**
-(see §8). The full bootstrap procedure is documented below so it is executable the moment a
-valid admin secret is available, but against `c1a42ae0` today **step 0 cannot be satisfied** and
-no transaction can be authorized. Nothing in this document mutates the chain.
+**On-chain `adminPk` (legacy):** `ed6bacf3f2feaf0826e3c2a638a834d7ff0b84018cf9a439fb8ee61a69f65435`
+**Status of this document:** **resolved** — superseded by the seed-derived owner model
+(see banner above). The procedure below describes the legacy admin flow for historical
+context; nothing in it mutates the chain today.
+
+---
+
+## Current implementation — the owner model (source of truth)
+
+The sections below are the current, authoritative description. Everything in
+§1–§7 is the retained forensic record of the legacy `adminPk` era and does not
+match the current code (see the note after this section).
+
+### Ownership model
+
+- **The deployer becomes the contract owner.** At deploy time the owner secret
+  is derived **deterministically from the deploy wallet seed**:
+  `ownerSecretFromSeed(seed)` = `deriveSecret(seed, 'owner-sk')`
+  (`src/proofgate.ts`). The constructor receives only its commitment:
+  `owner = ownerKey(ownerSecret)` (`persistentHash("ProofGateOwner:v1" ∥
+  ownerSecret)`), plus the deterministic deployer identity
+  `deployerId(address)` (`persistentHash("ProofGateDeployer:v1" ∥ address
+  slots)`, `src/schnorr.ts`).
+- **Owner authorization is cryptographically enforced.** Every governance
+  circuit asserts `ownerKey(ownerSecret()) == owner.read()` before mutating
+  state (`contracts/proofgate.compact`). A non-owner cannot build a satisfiable
+  proof, so non-owners cannot execute any governance operation.
+- **Reproducible, never lost.** Because the secret is re-derived from the seed
+  (kept in `.midnight-state.json`, mode 0600, and/or the BIP-39 mnemonic), the
+  deployer *is* the initial owner and the secret is never a one-time in-memory
+  value. It is never written to the chain — only the commitment is.
+- **The browser recognises the owner through public data.** A browser session
+  builds a fresh private state with a **random** owner secret, so it cannot
+  reproduce the seed-derived secret. It *can* deterministically recognise the
+  deployer/owner from public ledger data: `isDeployer` re-derives
+  `deployerId(connectedAddress)` and `isOwner` compares
+  `ownerKey(sessionSecret)` to the on-chain `owner` commitment
+  (`frontend/src/lib/ledger.ts`). In the default deployer-as-owner setup
+  `isOwner` is `false` in the browser, and owner actions are refused there
+  (`runContractCall(..., { owner: true })` rejects before any transaction).
+- **Owner-only transactions run through the deployment/CLI path.** The CLI
+  re-derives the owner secret from the same seed for every owner action
+  (`src/cli.ts`), so the deploy wallet executes governance; the browser cannot.
+- **`transferOwnership(newOwner)` is owner-only.** The circuit requires
+  `newOwner != owner` and `newOwner != pad(32, "")`. After the transfer the
+  on-chain commitment changes: the previous owner's secret no longer matches it
+  and the previous owner **loses all authority**; the new owner (holding the
+  secret behind `newOwner`) becomes the sole owner and can transfer onward.
+
+### Owner / governance operations (exact, implemented)
+
+Contract circuits (`contracts/proofgate.compact`) — every one asserts
+`ownerKey(ownerSecret()) == owner.read()`:
+
+| Circuit | Effect |
+|---|---|
+| `setPolicy(policyId, version, minAge, kyc, credVersion, jurisdictionCommitment, jurisdictions)` | activates/replaces the policy; `version > 0`; the 8-slot jurisdiction list must hash to the disclosed commitment |
+| `registerIssuer(pkX, pkY, metadataHash)` | registers an ACTIVE issuer (`issuers[issuerId] = { ACTIVE, pkX, pkY, metadataHash, … }`); issuer id must not already exist |
+| `setIssuerStatus(pkX, pkY, status)` | ACTIVE/SUSPENDED/REVOKED an existing issuer |
+| `revokeCredential(credId)` / `unrevokeCredential(credId)` | add/remove a credential id from the revocation set |
+| `setSubjectStatus(subjectPk, status)` | ACTIVE/SUSPENDED/REVOKED an existing subject (by pseudonym) |
+| `revokePermit(permitId)` | forfeit a VALID permit (→ REVOKED) |
+| `transferOwnership(newOwner)` | hand governance to a new owner commitment |
+
+CLI commands (`src/cli.ts`, seed-derived owner secret, executed by the deploy
+wallet):
+
+```bash
+npm run cli -- info                                   # read-only: owner, deployerId, ledger
+npm run cli -- set-policy <policyIdHex> [minAge] [kyc]      # owner: activate a policy (defaults minAge 18, KYC 2)
+npm run cli -- register-issuer <pkXHex> <pkYHex>            # owner: register a KYC issuer (Jubjub coords)
+npm run cli -- transfer-ownership <newOwnerHex>             # owner: transfer governance (32-byte commitment)
+```
+
+Browser UI: the Owner page (`frontend/src/components/pages/OwnerPage.tsx`,
+`features/OwnerPanel.tsx`) exposes `activateDemoPolicy`, `registerDemoIssuer`,
+`setPolicyAction`, `registerIssuerAction`, `setIssuerStatusAction`,
+`revokeCredentialAction`, `unrevokeCredentialAction`, `setSubjectStatusAction`,
+`revokePermitAction` and `transferOwnershipAction` (`frontend/src/store/session.ts`)
+— all gated on `meta.isOwner`. For a seed-derived new deployment these are only
+runnable by a session that holds the owner secret (the CLI/deploy path), or by
+a browser session that received ownership (e.g. after an in-session
+`transferOwnershipAction`).
+
+### Proof flow (real, current)
+
+```
+connect wallet (browser / CLI)
+  → owner initializes policy + issuer when required
+      (owner-only; CLI re-derives ownerSecretFromSeed(seed))
+  → user registers a credential          registerCredential(juris)   [ZK]
+  → user proves eligibility              covered inside registerCredential
+  → user requests a permit               requestPermit(feature, expiresAt, slot) [ZK]
+  → user consumes the permit             consumePermit(feature, permitId) [ZK]
+```
+
+| Step | Who | Private (ZK witnesses) | Public on-chain |
+|---|---|---|---|
+| `setPolicy` | owner | `ownerSecret` | policy id/version, minAge, KYC, credVersion, jurisdiction commitment |
+| `registerIssuer` | owner | `ownerSecret` | `issuerId`, issuer public key, metadata hash, status |
+| `registerCredential` | user | subject secret, credential claims + Schnorr signature | pseudonym, credId, issuerId, kycLevel, policyVersion, expiresAt, status |
+| `requestPermit` | user | subject secret, `permitSalt` | unlinkable `permitId`, holder pseudonym, feature, policyId, expiry, VALID |
+| `consumePermit` | user | subject secret | permit → CONSUMED |
+
+### New deployment flow (deployer-as-owner)
+
+1. `docker compose up -d --wait proof-server` (CLI/deploy prove via the local
+   proof server).
+2. `npm run deploy -- --network preview` — creates/reuses a wallet (seed +
+   BIP-39 mnemonic recorded in `.midnight-state.json`), funds it via the
+   faucet, then deploys with constructor
+   `(contractDomain, ownerKey(ownerSecretFromSeed(seed)), deployerId(address))`.
+   The printed `owner` and `deployerId` are the contract's initial owner and
+   deployer identity.
+3. `npm run cli -- set-policy …` and `npm run cli -- register-issuer …` — the
+   deploy wallet boots the policy and issuer registry (owner-only).
+4. Point the browser at the new address (`VITE_CONTRACT_ADDRESS`); users
+   register credentials and request/consume permits in the browser (ZK proofs
+   via the local proof server — see §5).
+5. Ownership can be transferred later:
+   `npm run cli -- transfer-ownership <newOwnerCommitmentHex>`. The new owner
+   must hold the secret behind that commitment; the old owner loses authority.
+
+### Existing deployment (`c1a42ae0…`) — do NOT modify
+
+- `c1a42ae0c36cc5a2c420cc5c84d3b1a4147f3427fd4514c99835d5918e6d1f67` is the
+  **historical** deployment (2026-08-08). Its governance was keyed to a
+  **one-time random `adminSecret`** generated in the deploy process's memory;
+  that secret is **unrecoverable** (§7). No party — including the current
+  browser wallet — can authorise any owner/governance transaction on it, and
+  the user flow cannot run either (it needs an active policy + registered
+  issuer, both owner-only).
+- It **must NOT be modified or redeployed** as part of this task (or at all).
+  The deployer-as-owner model applies to **NEW deployments only**. Do not imply
+  `c1a42ae0…` can suddenly be administered by the current wallet — it is locked
+  in pristine state forever. Its on-chain circuits (legacy `rotateAdmin` era)
+  do not match the current compiled artifacts, so attaching the current
+  frontend to it fails during session setup with a verifier-key mismatch, and
+  the CLI `info` reports it as incompatible.
+
+### Live deployment (owner model, current)
+
+- **Contract address:**
+  `c246ff86ef0e5177498c15f2f7fdf13b631aa3ae0ad4aebc905d3351882a5628`
+  (deployed 2026-08-09 with the seed-derived owner model). Initial owner
+  `2860db94…0c596c`, deployer identity `3c583294…8b384d`, deployer wallet
+  `mn_addr_preview1ee08n6m9hh4e36zk3ddpwul9fwjn9h38x2fr4upkpvud2ml03l9snf8q46`.
+- Policy `policy:proofgate:demo:v1` is active and the demo issuer is registered
+  (owner bootstrap done via the CLI). `.midnight-state.json`
+  (`deployments.preview`) and `frontend/.env.example` point at this instance,
+  so `npm run cli` and the browser dApp both target it automatically.
+
+---
+
+## Legacy record — what §1–§7 describe
+
+§1–§7 are the **historical record** of the original `c1a42ae0` admin bootstrap
+failure. They describe the **pre-owner-model contract** that existed at deploy
+time and has since been removed:
+
+- Ledger `adminPk` and witness `adminSecret` are **gone**; the current contract
+  uses `owner` (commitment of `ownerKey(ownerSecret())`) and `deployerId`.
+- Circuits `adminKey` and `rotateAdmin` are **gone**; governance now uses
+  `ownerKey(ownerSecret()) == owner` and `transferOwnership(newOwner)`.
+- The constructor is now `(contractDomainParam, ownerParam, deployerIdParam)`
+  (`contracts/proofgate.compact`), not `(contractDomainParam, adminPkParam)`.
+- Any `proofgate.compact:NNN`, `src/…:NNN` and `AdminPanel`/`meta.isAdmin`
+  references in §1–§4 refer to the **historical code state**, not the current
+  files. See **"Current implementation — the owner model"** above for what
+  exists today.
 
 ---
 
@@ -34,7 +218,7 @@ satisfiable proof — there is no adminless fallback and no time-lock recovery i
 ## 2. Where the admin secret was generated/stored during deployment
 
 Deployment runs `src/deploy.ts`. The deploy-time private state is `demoPrivateState(SEED)`
-(`src/deploy.ts:286`), where `SEED` is the wallet seed resolved by `getOrCreateWallet('preview')`
+(called at `src/deploy.ts:288`, defined in `src/proofgate.ts:159`), where `SEED` is the wallet seed resolved by `getOrCreateWallet('preview')`
 (`src/network.ts:268`). The `adminSecret` field was filled from this call.
 
 **Critical fact (verified against git history):** the deterministic seed derivation of
@@ -153,6 +337,8 @@ npm run cli -- consume-permit rwa:purchase <permitIdHex>
 
 ### Optional admin actions (any order after T1/T2, all admin-gated)
 - `rotateAdmin(newAdminPk)` — transfer governance (needs the old secret to authorize).
+  **Legacy name — the current circuit is `transferOwnership(newOwner)`; the old owner's secret
+  stops authorizing after the transfer.**
 - `revokeCredential(credId)` / `unrevokeCredential(credId)` — revocation registry.
 - `setIssuerStatus(pkX, pkY, status)` — suspend/revoke an issuer.
 - `setSubjectStatus(subjectPk, status)` — suspend/revoke a subject.
@@ -162,6 +348,12 @@ npm run cli -- consume-permit rwa:purchase <permitIdHex>
 > `meta.isAdmin` (frontend/src/lib/ledger.ts:214), which compares the session's `adminSecret`
 > commitment to the on-chain `adminPk` — with a random per-session secret it is always `false`
 > for `c1a42ae0`.
+>
+> **Current mapping:** AdminPanel → `features/OwnerPanel.tsx` (OwnerPage); `meta.isAdmin` →
+> `meta.isOwner`/`isDeployer` computed in `deriveMeta` (`frontend/src/lib/ledger.ts`); gating is
+> `sessionIsOwner()` (`frontend/src/store/session.ts`); SetupCard reflects session readiness, it is
+> not the owner panel. For seed-derived deployments `isOwner` is `false` in the browser (the
+> browser cannot reproduce `ownerSecretFromSeed(seed)`), and owner actions are refused there.
 
 ---
 
@@ -173,14 +365,17 @@ npm run cli -- consume-permit rwa:purchase <permitIdHex>
   indexer WS `wss://indexer.preview.midnight.network/api/v4/graphql/ws`, node `https://rpc.preview.midnight.network`.
   Overridable via `MIDNIGHT_INDEXER_URL`, `MIDNIGHT_INDEXER_WS_URL`, `MIDNIGHT_NODE_URL`,
   `MIDNIGHT_PROOF_SERVER_URL` (src/network.ts:171).
-- **Proof generation:** CLI/deploy path requires the official proof server at
-  `http://127.0.0.1:6300` (`docker compose up -d --wait proof-server`). The browser path proves
-  in-wallet via the Lace dApp Connector (no server).
+- **Proof generation:** every path requires the official proof server at
+  `http://127.0.0.1:6300` (`docker compose up -d --wait proof-server`). The CLI/deploy
+  proves via `httpClientProofProvider`; the browser dApp does the same via
+  `VITE_PROOF_SERVER_URL` because the Lace wallet's own proving backend cannot prove
+  ProofGate's custom circuits ("key not found: <circuit>"). The wallet signs,
+  balances, and submits.
 - **Wallet:** a funded wallet on Preview — needs `tNIGHT` (fees) and `tDUST` (token registration;
   auto-registered by the CLI). Resolved from `MIDNIGHT_WALLET_SEED` /
   `MIDNIGHT_WALLET_MNEMONIC` or `.midnight-state.json`.
 - **Private-state encryption password:** `PRIVATE_STATE_PASSWORD`, defaulting to
-  `Local-Devnet-Development-Placeholder-1` (src/deploy.ts:108, src/cli.ts:79). This only protects
+  `Local-Devnet-Development-Placeholder-1` (src/deploy.ts:111, src/cli.ts:84). This only protects
   the LevelDB-encrypted private state; it does not help recover an admin secret that was never stored.
 
 ---
@@ -210,8 +405,12 @@ derivation. `c1a42ae0` remains untouched.
 
 **Operational consequence for `c1a42ae0`:** all governance circuits are permanently unsatisfiable
 for this instance, and the user flow cannot run either (it requires an active policy + registered
-issuer, both admin-only). The address is effectively **locked in pristine state forever**. The only
-realistic paths forward are: (a) recover the secret from some source external to this machine
-(e.g. the person who ran the deploy), or (b) treat `c1a42ae0` as a locked read-only instance and
-deploy a fresh contract with a seed-derived (or otherwise known) admin secret. Per the standing
-constraints, neither redeployment nor chain mutation was performed here.
+issuer, both owner-only). The address is effectively **locked in pristine state forever**.
+
+**Resolution (implemented 2026-08-09):** rather than relying on a recoverable secret, the project
+adopted the **seed-derived owner model** — the owner secret is now derived deterministically from
+the deploy wallet seed at deploy time (`ownerSecretFromSeed`), so the deployer is always the
+initial owner and the secret can never be lost. Governance handover is an explicit
+`transferOwnership(newOwnerCommitment)` circuit, and a deterministic `deployerId(address)` records
+the deployer on-chain. Deploying a fresh contract (`npm run deploy`) now yields a fully operable,
+seed-controlled instance; `c1a42ae0` remains a locked legacy instance.

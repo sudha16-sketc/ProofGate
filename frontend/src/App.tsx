@@ -13,7 +13,7 @@ import { ProvePage } from './components/pages/ProvePage';
 import { PermitsPage } from './components/pages/PermitsPage';
 import { LedgerPage } from './components/pages/LedgerPage';
 import { TrustPage } from './components/pages/TrustPage';
-import { AdminPage } from './components/pages/AdminPage';
+import { OwnerPage } from './components/pages/OwnerPage';
 import { SettingsPage } from './components/pages/SettingsPage';
 
 function App() {
@@ -49,7 +49,7 @@ function App() {
       {activeRoute === 'permits' && <PermitsPage />}
       {activeRoute === 'ledger' && <LedgerPage />}
       {activeRoute === 'trust' && <TrustPage />}
-      {activeRoute === 'admin' && <AdminPage />}
+      {activeRoute === 'owner' && <OwnerPage />}
       {activeRoute === 'settings' && <SettingsPage navigate={navigate} />}
     </AppShell>
   );

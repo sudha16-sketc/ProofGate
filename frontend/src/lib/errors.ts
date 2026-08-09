@@ -15,6 +15,7 @@ export type ErrorKind =
   | 'insufficient-tdust'
   | 'indexer'
   | 'deployment'
+  | 'owner-only'
   | 'unknown';
 
 const MSG: Record<ErrorKind, string> = {
@@ -27,6 +28,7 @@ const MSG: Record<ErrorKind, string> = {
   'insufficient-tdust': 'Insufficient tDUST. Generate tDUST in the wallet and try again.',
   indexer: 'Indexer unavailable. The read-only ledger view could not be queried.',
   deployment: 'Contract deployment failed.',
+  'owner-only': 'This action is owner-only. The connected wallet is not the owner of the deployed contract — no transaction was submitted.',
   unknown: '',
 };
 
@@ -37,6 +39,7 @@ const RULES: ReadonlyArray<{ kind: ErrorKind; pattern: RegExp }> = [
   },
   { kind: 'wallet-not-connected', pattern: /wallet\s+is\s+not\s+connected|wallet\s+not\s+connected|no\s+wallet/i },
   { kind: 'contract-address-missing', pattern: /contract\s+address|address\s+is\s+missing/i },
+  { kind: 'owner-only', pattern: /caller\s+is\s+not\s+the\s+owner|failed\s+assert:.*owner|not\s+the\s+owner/i },
   { kind: 'insufficient-tdust', pattern: /not\s+enough\s+dust|insufficient\s+dust|dust\s+shortage/i },
   { kind: 'insufficient-tnight', pattern: /not\s+enough\s+night|insufficient\s+night|insufficient\s+funds|insufficient\s+tnight/i },
   { kind: 'proof-generation', pattern: /proof\s+generat|proving\s+failed|failed\s+to\s+prove|proof\s+server/i },

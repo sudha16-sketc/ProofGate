@@ -12,7 +12,7 @@ ledger only ever stores hash commitments, policy parameters and status flags.
 [![Generic badge](https://img.shields.io/badge/Compact%20Compiler-0.31.1-1abc9c.svg)](https://shields.io/)
 [![Generic badge](https://img.shields.io/badge/Midnight.js-4.1.1-blue.svg)](https://shields.io/)
 [![Generic badge](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://shields.io/)
-[![Generic badge](https://img.shields.io/badge/Tests-52%20passing-success.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Tests-56%20passing-success.svg)](https://shields.io/)
 
 ---
 
@@ -61,17 +61,18 @@ ProofGate is a compliance gateway built on Midnight:
 
 Three deliberately separated ZK circuit groups keep each circuit small:
 
-1. **`registerCredential`** — identity enrollment. Proves the issuer signature,
-   possession of the subject key, binding of every signed field, and current
-   validity. Stores a commitment to the signed claims. **No policy evaluation.**
-2. **`attestCompliance`** — selective disclosure. Proves the *enrolled* claims
+1. **`registerCredential`** — identity enrollment **and** policy compliance in a
+   single proof. Proves the issuer signature, possession of the subject key,
+   binding of every signed field, current validity, and that the signed claims
    satisfy the *currently active* policy (age, KYC level, jurisdiction, schema
-   + policy version) **without revealing them**.
-3. **`requestPermit` / `consumePermit`** — cheap access control gated on the
-   attested policy version and one-time permit consumption.
+   + policy version). Stores a commitment to the signed claims.
+2. **`requestPermit` / `consumePermit`** — cheap access control gated on the
+   registered subject's record and the active policy version, converting
+   eligibility into a one-time permit that is consumed exactly once.
 
-Registration never repeats when policy changes; compliance is re-proven per
-policy version; permits are the enforceable one-shot authorization.
+Registration never repeats when policy changes; compliance is re-proven at
+registration time per active policy version; permits are the enforceable
+one-shot authorization.
 
 **Signature scheme** — Schnorr over Jubjub (embedded curve in BLS12-381 Fr),
 verified **in-circuit**. The signed credential is an 18-slot, domain-separated
@@ -100,15 +101,15 @@ flowchart TD
 
 | Layer | Component | Responsibility |
 |---|---|---|
-| Contract | `contracts/proofgate.compact` | The ProofGate smart contract in Compact (12 provable + pure helper circuits) |
+| Contract | `contracts/proofgate.compact` | The ProofGate smart contract in Compact (17 exported circuits: 11 state-mutating, 3 in-circuit predicates, 3 pure commitment helpers) |
 | Contract (compiled) | `managed/proofgate/` | Compiler output: `contract/` (TS bindings), `keys/` (prover/verifier keys), `zkir/` (ZK circuits) |
 | Shared crypto | `src/schnorr.ts` | Schnorr-over-Jubjub credential signing/verification (off-chain mirror of the in-circuit scheme) |
 | Shared SDK | `src/proofgate.ts` | Node-side private state model, demo credentials, witness builder, jurisdiction helpers |
-| CLI | `src/cli.ts` | `info`, `set-policy`, `register-issuer`, `register-credential`, `attest-compliance`, `request-permit`, `consume-permit`, `demo` |
+| CLI | `src/cli.ts` | `info`, `set-policy`, `register-issuer`, `transfer-ownership`, `register-credential`, `request-permit`, `consume-permit`, `demo` |
 | CLI | `src/deploy.ts` | Non-interactive deploy (proves via the proof server) |
 | CLI | `src/wallet.ts`, `src/network.ts` | Wallet SDK facade, network configs (`undeployed`/`preview`/`preprod`), BIP-39 wallet management |
-| Web UI | `frontend/` | React app: connect wallet, credential, prove, permits, ledger, trust, admin, settings |
-| Tests | `tests/proofgate.test.ts` | 46 headless contract tests (no Docker / proof server / network) |
+| Web UI | `frontend/` | React app: connect wallet, credential, prove, permits, ledger, trust, owner, settings |
+| Tests | `tests/proofgate.test.ts` | 50 headless contract tests (no Docker / proof server / network) |
 | Tests | `tests/schnorr-prototype.test.ts` | 6 Schnorr prototype sanity tests |
 | Infra | `compose.yml` | Local devnet: `midnight-node`, `indexer-standalone`, `proof-server` (optional) |
 
@@ -171,15 +172,13 @@ In zero knowledge, for each circuit:
 
 - **`registerCredential`**: the Schnorr signature verifies under a registered,
   active issuer key; the caller owns the signed subject key; every signed field
-  is bound; the credential is valid now (not future/expired/revoked) and not
-  already enrolled.
-- **`attestCompliance`**: the *enrolled* claims (pinned by `claimCommitment`)
-  satisfy the active policy — `age >= minimumAge`, `kycLevel >=
-  requiredKycLevel`, jurisdiction in the policy's allowed set, credential and
-  policy version match.
-- **`requestPermit` / `consumePermit`**: the subject is active, attested for the
-  active policy version, unrevoked, unexpired; the permit is held by the caller
-  and consumed exactly once.
+  is bound; the credential is valid now (not future/expired/revoked), not
+  already enrolled, and its signed claims satisfy the *active* policy —
+  `age >= minimumAge`, `kycLevel >= requiredKycLevel`, jurisdiction in the
+  policy's allowed set, credential and policy version match.
+- **`requestPermit` / `consumePermit`**: the subject is active, compliant under
+  the active policy version, unrevoked, unexpired; the permit is held by the
+  caller and consumed exactly once.
 
 ### Why is this different from ordinary on-chain KYC?
 
@@ -207,10 +206,10 @@ on a trusted oracle to whisper "verified". ProofGate:
   (different domains) and permits are salted, but within one instance, the same
   subject's permit and credential records are linkable to that subject's
   pseudonym — this is required so the contract can enforce ownership.
-- **Trust**: the admin (contract deployer) can rotate keys and manage policy/
-  issuer registries; issuers are a trusted third party for the *credential
-  claims* (as in the real world), but ProofGate never trusts them to evaluate
-  policy.
+- **Trust**: the owner (initialized to the contract deployer) can transfer
+  ownership and manage policy/issuer registries; issuers are a trusted third
+  party for the *credential claims* (as in the real world), but ProofGate never
+  trusts them to evaluate policy.
 ## CI/CD badge or workflow file with passing runs
 [![ProofGate CI](https://github.com/sudha16-sketc/ProofGate/blob/main/.github/workflows/main.yml/badge.svg)]((https://github.com/sudha16-sketc/ProofGate/blob/main/.github/workflows/main.yml))
 ## Technology Stack
@@ -242,11 +241,9 @@ sequenceDiagram
     U->>W: Connect wallet (Midnight Preview)
     A->>C: discover deployed contract
     U->>A: Prove eligibility (pick feature)
-    A->>W: prove registerCredential (ZK: signature, possession, validity)
+    A->>W: prove registerCredential (ZK: signature, possession, validity + policy compliance)
     W->>C: submit tx
-    A->>W: prove attestCompliance (ZK: claims satisfy policy — claims hidden)
-    W->>C: submit tx
-    A->>W: prove requestPermit (ZK: attested, unrevoked, unexpired)
+    A->>W: prove requestPermit (ZK: active, compliant, unrevoked, unexpired)
     W->>C: submit tx
     C-->>I: public state: pseudonym, statuses, policy, permit
     U->>A: Consume one-time permit
@@ -261,16 +258,22 @@ for generated types.
 
 | Circuit | Kind | Purpose |
 |---|---|---|
-| `adminKey`, `issuerId`, `subjectKey` | pure | domain-separated commitments |
-| `registerCredential` | ZK | identity enrollment (signature + possession + validity) |
-| `attestCompliance` | ZK | selective-disclosure policy check (claims stay hidden) |
+| `ownerKey`, `issuerId`, `subjectKey` | pure | domain-separated commitments |
+| `checkSignature`, `checkPossession`, `checkCredential` | ZK predicate | composed inside `registerCredential` |
+| `registerCredential` | ZK | identity enrollment + policy compliance (signature, possession, validity, claims satisfy the active policy) |
 | `requestPermit` | ZK | one-time authorization (unlinkable id) |
 | `consumePermit` | ZK | spend the permit exactly once |
-| `setPolicy`, `registerIssuer`, `setIssuerStatus`, `revokeCredential`, `unrevokeCredential`, `setSubjectStatus`, `rotateAdmin`, `revokePermit` | ZK | admin-governed policy/issuer/lifecycle |
+| `setPolicy`, `registerIssuer`, `setIssuerStatus`, `revokeCredential`, `unrevokeCredential`, `setSubjectStatus`, `transferOwnership`, `revokePermit` | ZK | owner-governed policy/issuer/lifecycle |
 
-Key ledger fields: `contractDomain`, `adminPk`, `activePolicyId/Version`,
+Key ledger fields: `contractDomain`, `owner`, `deployerId`, `activePolicyId/Version`,
 `minimumAge`, `requiredKycLevel`, `requiredCredentialVersion`,
 `jurisdictionCommitment`, `issuers`, `subjects`, `revoked`, `permits`, `seq`.
+
+Ownership model: the contract's `owner` is the commitment of a 32-byte owner
+secret. On deploy the owner secret is derived deterministically from the deploy
+wallet seed (label `owner-sk`), so the deployer is the initial owner and no
+secret can be lost. `deployerId` records the deployer's wallet address. An owner
+can transfer governance to a new owner commitment with `transferOwnership`.
 
 ## Tests
 
@@ -278,14 +281,15 @@ Key ledger fields: `contractDomain`, `adminPk`, `activePolicyId/Version`,
 npm test
 ```
 
-**Result (2026-08-09): 52 passing tests, 2 files.**
+**Result (2026-08-09): 56 passing tests, 2 files.**
 
-- `tests/proofgate.test.ts` (46) — headless contract tests against the compiled
+- `tests/proofgate.test.ts` (50) — headless contract tests against the compiled
   contract via the Compact runtime: pure-circuit commitment logic; the full
-  admin/user lifecycle with every meaningful rejection path (bad signature,
+  owner/user lifecycle with every meaningful rejection path (bad signature,
   possession, unregistered issuer, under-age, insufficient KYC, unsupported
   schema/policy version, wrong jurisdiction, revoked/expired credentials,
-  consumed/revoked permits, admin rotation); and **privacy** tests asserting
+  consumed/revoked permits, ownership transfer and loss of authority); and
+  **privacy** tests asserting
   private witnesses never appear in the public ledger or public proof data.
 - `tests/schnorr-prototype.test.ts` (6) — Schnorr prototype sanity checks.
 
@@ -310,25 +314,106 @@ Workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 ## Deployment
 
 - **Network:** [Midnight Preview](https://docs.midnight.network/) — the dApp is
-  **Preview-first** (defaults to `preview`, in-wallet proving, no Docker).
-- **Contract address (deployed):**
+  **Preview-first** (defaults to `preview`, proving via the local proof server,
+  no chain-side devnet).
+
+### Historical deployment (locked, do not touch)
+
+- **Contract address:**
   `c1a42ae0c36cc5a2c420cc5c84d3b1a4147f3427fd4514c99835d5918e6d1f67`
-  (deployed 2026-08-08; see `.midnight-state.json`, which is git-ignored).
-- **Frontend config:** `frontend/.env.example` already pins
-  `VITE_NETWORK_ID=preview`, the contract address and the official Preview
-  indexer.
+  (deployed 2026-08-08; recorded in `.midnight-state.json`, which is
+  git-ignored).
+- This instance predates the **owner/deployerId** schema: its governance was
+  keyed to a **one-time random `adminSecret` generated in the deploy process's
+  memory** that is **unrecoverable** (see
+  [docs/ADMIN_BOOTSTRAP.md](./docs/ADMIN_BOOTSTRAP.md)). No party can authorise
+  any owner/administrative transaction on it today.
+- It must **NOT** be modified or redeployed. The deployer-as-owner model applies
+  to **new** deployments only. Its on-chain circuits (legacy `rotateAdmin` era)
+  do not match the current compiled artifacts, so attaching the current
+  frontend to this address fails during session setup with a verifier-key
+  mismatch (it does **not** boot into a read-only state), and `npm run cli --
+  info` reports it as incompatible.
+
+### Live instance (owner model, current)
+
+- **Contract address:**
+  `c246ff86ef0e5177498c15f2f7fdf13b631aa3ae0ad4aebc905d3351882a5628`
+  (deployed 2026-08-09; recorded in `.midnight-state.json` under
+  `deployments.preview`).
+- Initial owner `2860db94…0c596c` (commitment of the seed-derived owner
+  secret), deployer identity `3c583294…8b384d`, wallet
+  `mn_addr_preview1ee08n6m9hh4e36zk3ddpwul9fwjn9h38x2fr4upkpvud2ml03l9snf8q46`.
+- Policy `policy:proofgate:demo:v1` (minAge 18, KYC 2) is active and the demo
+  issuer is registered. `frontend/.env.example` (and any `.env.local`) point at
+  this address, so `cp frontend/.env.example frontend/.env.local` + `npm run
+  frontend:dev` connects out of the box.
+
+### Deploying a NEW contract (deployer becomes owner)
+
+The current implementation records the deployer as the contract owner at deploy
+time:
+
+```bash
+npm install
+docker compose up -d --wait proof-server   # CLI/deploy prove via the local proof server
+npm run deploy -- --network preview        # non-interactive: wallet, funding, deploy
+```
+
+What happens:
+
+1. A wallet is generated (or reused) and its BIP-39 mnemonic/seed is recorded
+   in `.midnight-state.json` (mode 0600, gitignored). Fund it at the network
+   faucet if prompted.
+2. The **owner secret** is derived **deterministically from that wallet seed**
+   (`ownerSecretFromSeed(seed)` = `deriveSecret(seed, 'owner-sk')`), so the
+   secret is reproducible as long as the seed is kept — it is never lost and
+   never written to the chain.
+3. Only the **commitment** `owner = ownerKey(ownerSecret)` and the **deployer
+   identity** `deployerId(address)` are disclosed to the constructor
+   `(contractDomain, owner, deployerId)`. The deployer *is* the initial owner.
+4. The new address is saved to `.midnight-state.json` under
+   `deployments.<network>`; `npm run cli` targets it automatically.
+
+### Owner actions (executed via the CLI)
+
+Because the owner secret is derived from the deploy seed — which lives in the
+CLI/deployment context, not in a browser wallet session — owner-only
+transactions are executed through the CLI (each command re-derives the secret
+from the seed and proves ownership in zero knowledge):
+
+```bash
+npm run cli -- info                              # read-only: owner, deployerId, ledger
+npm run cli -- set-policy <policyIdHex> [minAge] [kyc]   # owner: activate a policy
+npm run cli -- register-issuer <xHex> <yHex>             # owner: register a KYC issuer
+npm run cli -- transfer-ownership <ownerHex>             # owner: hand governance to a new owner commitment
+```
+
+The browser can **recognise** the deployer/owner through the public deployment
+identity (`deployerId` re-derived from the connected wallet address) and the
+public `owner` commitment, but it cannot reproduce the seed-derived owner
+secret, so non-owners cannot execute governance operations. After
+`transferOwnership(newOwner)`, the previous owner's secret no longer matches the
+on-chain commitment — the old owner loses authority and the new owner is the
+sole owner.
 
 ### Run it locally
 
 ```bash
 npm install
 cp frontend/.env.example frontend/.env.local
+docker compose up -d --wait proof-server   # required: the dApp proves via the local proof server
 npm run frontend:dev      # http://127.0.0.1:8080 — connect your Lace wallet on Midnight Preview
 ```
 
-The browser path proves **in-wallet** and needs no node, indexer, proof server,
-or Docker. The CLI (`npm run cli`) proves via a locally-run official proof
-server — there is no Midnight-hosted public proof server.
+> **Why a proof server is required:** ProofGate uses custom circuits, so proving
+> must happen against a server that holds (or receives) the circuit keys. The
+> Lace wallet's own proving backend cannot prove custom circuits — attempts fail
+> with `{"error": "key not found: <circuit>"}` — so `frontend/.env.example`
+> sets `VITE_PROOF_SERVER_URL=http://127.0.0.1:6300` and the dApp proves via
+> the official `midnightntwrk/proof-server` using the same `httpClientProofProvider`
+> path as the CLI. The wallet is still used for signing, balancing, and
+> submission. There is no Midnight-hosted public proof server.
 
 ### Live demo
 
@@ -357,7 +442,7 @@ we do not claim organizer approval.
 
 | Capture | File |
 |---|---|
-| Test suite output (52 passing) | [`docs/screenshots/tests.png`](./docs/screenshots/tests.png) |
+| Test suite output (56 passing) | [`docs/screenshots/tests.png`](./docs/screenshots/tests.png) |
 | Web UI | *(to be added)* |
 
 ## Security / Privacy Considerations
@@ -369,9 +454,9 @@ we do not claim organizer approval.
 - **Single runtime copy.** `@midnight-ntwrk/onchain-runtime-v3` is pinned via
   `overrides`; two copies break `StateValue` (see
   `frontend/vite.config.ts` dedupe).
-- **Deterministic demo admin.** The demo derives the admin secret from the
-  wallet seed (`deriveSecret(seed, 'admin-sk')`); the CLI and deploy must use
-  the same seed.
+- **Deterministic demo owner.** On deploy the owner secret is derived from the
+  wallet seed (`deriveSecret(seed, 'owner-sk')`); the CLI and deploy must use
+  the same seed so the deploy wallet is the contract's owner.
 - **Privacy invariants are tested**, not asserted: the suite inspects the
   public ledger schema and public transcript bytes for any private value.
 - **Fixed demo issuer key (sk = 42)** is a demo convenience shared by CLI,

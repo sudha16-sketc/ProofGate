@@ -1,4 +1,4 @@
-import { useSessionMeta, useSessionStatus } from '../../store/session';
+import { useSessionAddress, useSessionMeta, useSessionStatus } from '../../store/session';
 import { useSessionBusy } from '../../store/session';
 import { runDemoSetup } from '../../store/session';
 import { Button } from '../ui/Button';
@@ -6,13 +6,18 @@ import { StatusBadge } from '../ui/Badge';
 import { IconCheck, IconShield } from '../icons';
 
 /**
- * The admin-side demo setup steps (activate policy + register demo issuer).
+ * The owner-side demo setup steps (activate policy + register demo issuer).
  * Shown anywhere a user would otherwise fail with "no policy / no issuer".
+ *
+ * The steps require the deployed contract's owner. When the connected wallet is
+ * known not to be the owner, the button is replaced by a clear explanation and
+ * no transaction is attempted.
  */
 export function DemoSetupActions() {
   const status = useSessionStatus();
   const busy = useSessionBusy();
   const meta = useSessionMeta();
+  const address = useSessionAddress();
 
   if (status !== 'ready') return null;
 
@@ -23,6 +28,22 @@ export function DemoSetupActions() {
   const pending = steps.filter((s) => !s.done);
   if (pending.length === 0) return null;
 
+  if (meta?.isOwner !== true) {
+    return (
+      <div className="card">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Demo setup unavailable</h3>
+          <StatusBadge tone="warn">owner required</StatusBadge>
+        </div>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Activating the demo policy and registering the demo issuer are owner actions on{' '}
+          <span className="mono">{address}</span>. This wallet is not the owner of that contract, so the
+          demo setup cannot run here.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <div className="row-between">
@@ -31,7 +52,7 @@ export function DemoSetupActions() {
       </div>
       <p className="muted" style={{ marginTop: 8 }}>
         Registering a credential needs an active policy and a registered issuer. Run the one-click demo setup first —
-        both are admin actions proven in zero-knowledge.
+        both are owner actions proven in zero-knowledge.
       </p>
       <div className="stack-sm" style={{ marginTop: 12, gap: 6 }}>
         {steps.map((s) => (

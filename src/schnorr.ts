@@ -65,7 +65,8 @@ export const DOMAIN = {
   cred: 'ProofGateCredential:v1',
   subject: 'ProofGateSubject:v1',
   issuer: 'ProofGateIssuer:v1',
-  admin: 'ProofGateAdmin:v1',
+  owner: 'ProofGateOwner:v1',
+  deployer: 'ProofGateDeployer:v1',
   permit: 'ProofGatePermit:v1',
 } as const;
 
@@ -272,10 +273,31 @@ export function subjectKey(contractDomain: Uint8Array, subjectPubX: Uint8Array, 
   ]);
 }
 
-/** Admin commitment: persistentHash("ProofGateAdmin:v1" + adminSecret). */
-export function adminKey(adminSecret: Uint8Array): Uint8Array {
+/** Owner commitment: persistentHash("ProofGateOwner:v1" + ownerSecret). */
+export function ownerKey(ownerSecret: Uint8Array): Uint8Array {
   return persistentHash(new CompactTypeVector(2, new CompactTypeBytes(32)), [
-    pad32(DOMAIN.admin),
-    adminSecret,
+    pad32(DOMAIN.owner),
+    ownerSecret,
+  ]);
+}
+
+/**
+ * Deployer identity: persistentHash("ProofGateDeployer:v1" + address slots).
+ * The bech32 address is split into 32-byte slots so the same synchronous
+ * helper works in Node and the browser (no Web Crypto needed). Deterministic
+ * for a given wallet address, so the deployer can be recognised everywhere.
+ */
+export function deployerId(address: string): Uint8Array {
+  const raw = new TextEncoder().encode(address);
+  const slots: Uint8Array[] = [];
+  for (let i = 0; i < raw.length; i += 32) {
+    const slot = new Uint8Array(32);
+    slot.set(raw.subarray(i, i + 32));
+    slots.push(slot);
+  }
+  if (slots.length === 0) slots.push(new Uint8Array(32));
+  return persistentHash(new CompactTypeVector(1 + slots.length, new CompactTypeBytes(32)), [
+    pad32(DOMAIN.deployer),
+    ...slots,
   ]);
 }

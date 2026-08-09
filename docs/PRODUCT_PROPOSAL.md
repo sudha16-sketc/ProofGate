@@ -117,13 +117,15 @@ the full threat model and the honest limits of metadata privacy.
 1. Open ProofGate, connect the Midnight (Lace) wallet on Preview.
 2. (Demo) the wallet holds a demo credential signed by the demo issuer;
    production would fetch one from a real KYC issuer.
-3. Admin activates the demo policy; the issuer is registered.
+3. The **owner** (the contract deployer) activates the demo policy and
+   registers the issuer — owner-only transactions executed through the
+   CLI/deployment path (the browser cannot reproduce the seed-derived owner
+   secret).
 4. User **registers the credential** — ZK proof of signature + possession +
-   validity; the ledger stores only a commitment.
-5. User **attests compliance** — ZK proof that the *enrolled* claims satisfy
-   the active policy, revealing none of them.
-6. User **requests a one-time permit** for a feature (e.g. `rwa:purchase`).
-7. The service **consumes the permit**; it is marked `CONSUMED` and cannot be
+   validity **and** that the signed claims satisfy the active policy, revealing
+   none of the claims; the ledger stores only a commitment.
+5. User **requests a one-time permit** for a feature (e.g. `rwa:purchase`).
+6. The service **consumes the permit**; it is marked `CONSUMED` and cannot be
    replayed.
 
 ## Technical architecture
@@ -133,20 +135,27 @@ User (browser) ── Lace wallet (proving in-app)
         │  private credential + subject secret
         ▼
 Midnight Preview network ── ProofGate contract (Compact, compiled 0.31.1)
-        │  ZK proofs: registerCredential · attestCompliance · requestPermit · consumePermit
+        │  ZK proofs: registerCredential · requestPermit · consumePermit
         ▼
 Public ledger: pseudonyms · policy · statuses · one-time permits
 ```
 
 - **Contract:** `contracts/proofgate.compact` (Compact 0.23.0, language_version).
-  12 provable circuits + pure commitment helpers (adminKey, issuerId, subjectKey)
-  and in-circuit Schnorr-over-Jubjub signature verification.
+  17 exported circuits (11 state-mutating: `setPolicy`, `registerIssuer`,
+  `setIssuerStatus`, `revokeCredential`, `unrevokeCredential`,
+  `setSubjectStatus`, `registerCredential`, `requestPermit`, `consumePermit`,
+  `revokePermit`, `transferOwnership`; 3 in-circuit predicates
+  `checkSignature`/`checkPossession`/`checkCredential`; 3 pure commitment
+  helpers `ownerKey`, `issuerId`, `subjectKey`) plus in-circuit Schnorr-over-
+  Jubjub signature verification.
 - **SDK:** Midnight.js 4.1.1 (`midnight-js-*`), Wallet SDK 1.2.0, compact-runtime
   0.16.0, onchain-runtime-v3 3.0.0 (single-copy enforced).
-- **Frontend:** React + Vite (TypeScript), Preview-first, in-wallet proving via
-  Lace's DApp Connector API.
-- **CLI/deploy:** `src/cli.ts`, `src/deploy.ts` (prove via a local official
-  proof server for scripting; the browser path needs none).
+- **Frontend:** React + Vite (TypeScript), Preview-first, proving via the local
+  official proof server (`VITE_PROOF_SERVER_URL`, `httpClientProofProvider`) —
+  the Lace wallet's proving backend cannot prove custom circuits; the wallet
+  signs, balances, and submits via the DApp Connector API.
+- **CLI/deploy:** `src/cli.ts`, `src/deploy.ts` (prove via the same local official
+  proof server).
 - **Tests:** vitest headless harness (`tests/proofgate.test.ts`) running the
   compiled contract against the Compact runtime — no Docker, no network.
 
@@ -154,11 +163,10 @@ Public ledger: pseudonyms · policy · statuses · one-time permits
 
 | Circuit | Purpose | Proves (ZK) |
 |---|---|---|
-| `registerCredential` | identity enrollment | issuer signature, key possession, field binding, validity, non-revocation |
-| `attestCompliance` | selective disclosure | enrolled claims satisfy the active policy (age, KYC, jurisdiction, versions) |
+| `registerCredential` | identity enrollment + policy compliance | issuer signature, key possession, field binding, validity, non-revocation, and the signed claims satisfy the active policy (age, KYC, jurisdiction, versions) |
 | `requestPermit` | access control | compliant + authorized subject; returns unlinkable permit id |
 | `consumePermit` | one-time action | holder owns a valid, unexpired permit for the feature |
-| `setPolicy` / `registerIssuer` / `setIssuerStatus` / `revokeCredential` / `setSubjectStatus` / `rotateAdmin` / `revokePermit` | governance | admin authorization |
+| `setPolicy` / `registerIssuer` / `setIssuerStatus` / `revokeCredential` / `unrevokeCredential` / `setSubjectStatus` / `transferOwnership` / `revokePermit` | governance | owner authorization (`ownerKey(ownerSecret) == owner`) |
 
 ## ZK / private computation
 
@@ -184,10 +192,11 @@ to "prove eligibility once, per policy, in zero knowledge."
 ## Demo plan
 
 See `docs/DEMO_SCRIPT.md`. The 60-second demo walks the full path on Midnight
-Preview: connect wallet → private credential → generate proof → contract
-verifies → one-time permit, while showing that the sensitive input is never
-exposed. The headless test suite (52 passing tests) proves eligibility,
-rejection, and non-exposure of private inputs.
+Preview: connect wallet → owner initialises policy/issuer (CLI) → user registers
+credential → request permit → contract verifies → consume one-time permit, while
+showing that the sensitive input is never exposed. The headless test suite (56
+passing tests) proves eligibility, rejection, and non-exposure of private
+inputs.
 
 ## Future roadmap
 

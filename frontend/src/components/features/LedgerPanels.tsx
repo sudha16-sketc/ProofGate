@@ -76,7 +76,8 @@ export function LedgerPanels() {
           ]}
           rows={[
             { key: 'domain', k: 'Contract domain', v: <Id value={ledger.contractDomain} /> },
-            { key: 'admin', k: 'Admin commitment', v: <Id value={ledger.adminPk} /> },
+            { key: 'owner', k: 'Owner commitment', v: <Id value={ledger.owner} /> },
+            { key: 'deployer', k: 'Deployer identity', v: <Id value={ledger.deployerId} /> },
             { key: 'policyId', k: 'Active policy id', v: <Id value={ledger.activePolicyId} /> },
             { key: 'policyVersion', k: 'Active policy version', v: ledger.activePolicyVersion.toString() },
             { key: 'minAge', k: 'Minimum age', v: ledger.minimumAge.toString() },
@@ -160,7 +161,7 @@ const PRIVACY: Record<string, { title: string; note: string; rows: { public: str
     rows: [
       { public: 'Minimum age, required KYC level', private: 'Which birth date belongs to a subject' },
       { public: 'Allowed jurisdictions (commitment)', private: 'Which jurisdiction a subject lives in' },
-      { public: 'Policy version & admin commitment', private: 'Who controls the contract (only the commitment)' },
+      { public: 'Policy version, owner & deployer commitment', private: 'Who controls the contract (only commitments)' },
     ],
   },
   issuers: {

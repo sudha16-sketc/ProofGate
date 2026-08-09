@@ -4,7 +4,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { IconActivity, IconCheckCircle, IconClock, IconX } from '../icons';
 import { circuitLabel } from '../../lib/formats';
 
-/** Inline activity feed (used on the overview/admin pages). */
+/** Inline activity feed (used on the overview/owner pages). */
 export function ActivityFeed() {
   const activity = useSessionActivity();
 

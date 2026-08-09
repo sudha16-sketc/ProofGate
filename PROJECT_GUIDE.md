@@ -71,7 +71,7 @@ This document covers the **architecture**, **workflow**, **user flow**, and
 
 | Layer | Component | Responsibility |
 |---|---|---|
-| Contract | `contracts/proofgate.compact` | The ProofGate smart contract in Compact (12 provable + 5 pure circuits) |
+| Contract | `contracts/proofgate.compact` | The ProofGate smart contract in Compact (17 exported circuits: 11 state-mutating, 3 in-circuit predicates, 3 pure commitment helpers) |
 | Contract (compiled) | `managed/proofgate/` | Compiler output: `contract/` (TS bindings), `keys/` (prover/verifier keys), `zkir/` (ZK circuits) |
 | Shared crypto | `src/schnorr.ts` | Schnorr-over-Jubjub credential signing/verification (off-chain mirror of the in-circuit scheme) |
 | Shared SDK | `src/proofgate.ts` | Node-side private state model, demo credentials, witness builder, jurisdiction helpers |
@@ -83,11 +83,11 @@ This document covers the **architecture**, **workflow**, **user flow**, and
 | Browser | `frontend/src/hooks/useMidnight.ts` | Wallet discovery + connection state store (module-level) |
 | Browser | `frontend/src/lib/providers.ts` | Builds Midnight providers from the wallet's own `getConfiguration()` |
 | Browser | `frontend/src/lib/contract.ts` | `deployContract` / `findDeployedContract` wiring |
-| CLI | `src/cli.ts` | `info`, `set-policy`, `register-issuer`, `register-credential`, `attest-compliance`, `request-permit`, `consume-permit`, `demo` |
+| CLI | `src/cli.ts` | `info`, `set-policy`, `register-issuer`, `transfer-ownership`, `register-credential`, `request-permit`, `consume-permit`, `demo` |
 | CLI | `src/deploy.ts` | Non-interactive deploy (uses proof server for ZK) |
 | CLI | `src/wallet.ts` | Wallet SDK facade, network-ID configuration |
 | CLI | `src/network.ts` | Network configs (`undeployed`/`preview`/`preprod`), state file, BIP-39 wallet management |
-| Tests | `tests/proofgate.test.ts` | 45 headless contract tests (no Docker / proof server) |
+| Tests | `tests/proofgate.test.ts` | 50 headless contract tests (no Docker / proof server) |
 | Tests | `tests/schnorr-prototype.test.ts` | 6 Schnorr prototype sanity tests |
 | Infra | `compose.yml` | Local devnet: node, indexer, proof-server |
 
@@ -101,7 +101,7 @@ are **private**.
 
 | Role | Public (on-chain) | Private (witness-only) |
 |---|---|---|
-| **Admin** (deployer) | `adminPk` — commitment of the admin secret | the admin secret itself |
+| **Owner** (deployer) | `owner` — commitment of the owner secret; `deployerId` — identity of the deploy wallet | the owner secret itself |
 | **KYC issuer** | `issuerId` (persistentHash of its public key) → `Issuer{status, pkX, pkY, metadataHash, …}` | the issuer secret key |
 | **Subject** (end user) | pseudonym `subjectKey(domain, pk)` → `Subject{status, credId, issuerId, kycLevel, policyVersion, expiresAt, registeredAt}` | `subjectSk`, raw public keys, signed claims (`age`, `jurisdiction`, KYC, times, versions), Schnorr signature `R`/`s`, credential id |
 | **Permit** | `permitId`, holder pseudonym, feature, policyId, expiry, `VALID`/`CONSUMED`/`REVOKED` | per-permit `permitSalt` (makes permit ids unlinkable) |
@@ -143,17 +143,16 @@ flowchart TD
     A[Install Node 22+] --> B[npm install]
     B --> C[npm run compile]
     C --> D{Client}
-    D -->|Web UI - Preview default| L1[connect Lace wallet on Midnight Preview - no Docker]
-    L1 --> L2[recognizes already-deployed contract - no deploy needed]
-    L2 --> L3[activate policy / register / permit in-wallet]
     D -->|CLI - preview / preprod| G[local proof server via Docker - optional, CLI-only]
     G --> H[wallet auto-created / reused]
     H --> I[fund via faucet: tNIGHT + tDUST]
     I --> J[contract deployed, address saved to .midnight-state.json]
+    J --> O[owner = commitment of ownerSecretFromSeed(seed)<br/>deployerId recorded on-chain]
     D -->|CLI - undeployed local devnet| E[docker compose up -d]
     E --> F[npm run deploy -- --network undeployed]
-    J --> K[CLI: npm run cli]
-    J --> L[Web UI: point VITE_CONTRACT_ADDRESS at address]
+    O --> K[CLI owner bootstrap: set-policy + register-issuer<br/>(owner secret re-derived from the seed)]
+    K --> M[Web UI: point VITE_CONTRACT_ADDRESS at address]
+    M --> N[user: register credential / request permit / consume permit in browser<br/>(ZK proofs via local proof server)]
 ```
 
 1. **Compile** — `npm run compile` (`compact compile contracts/proofgate.compact
@@ -161,20 +160,29 @@ flowchart TD
    (`zkir/`) and keys (`keys/`).
 2. **Deploy** (`src/deploy.ts`) — picks a network, creates/restores a wallet,
    waits for sync, ensures tNIGHT + tDUST, waits for the proof server, then calls
-   `deployContract(providers, { args: [contractDomain, adminPk] })`. The
+   `deployContract(providers, { args: [contractDomain, owner, deployerId] })`. The
    canonical domain is `DEFAULT_DOMAIN = pad32("ProofGate:canonical:test:v1")`.
-   The **Web UI is Preview-first and needs no deploy** — it discovers the
-   already-deployed Preview contract at `frontend/.env.example`.
-3. The constructor stores `contractDomain` and the admin commitment (`adminPk`)
-   on-chain. **All demo credentials are bound to `DEFAULT_DOMAIN`**, so a fresh
-   page session or CLI demo works against any standard deployment.
+   The owner is the commitment of an owner secret derived from the deploy wallet
+   seed (`ownerSecretFromSeed(seed)`), so the deployer is the initial owner and
+   the secret is reproducible from the seed for every owner action.
+3. The constructor stores `contractDomain`, the owner commitment (`owner`) and
+   the deployer identity (`deployerId`) on-chain. **All demo credentials are
+   bound to `DEFAULT_DOMAIN`**, so a fresh page session or CLI demo works
+   against any standard deployment.
+4. **Owner bootstrap** — the deployer activates a policy and registers the demo
+   issuer through the CLI (`npm run cli -- set-policy …`, `npm run cli --
+   register-issuer …`), because the browser cannot reproduce the seed-derived
+   owner secret. The **Web UI is Preview-first and needs no deploy** — point
+   `VITE_CONTRACT_ADDRESS` at the new deployment; it discovers the contract and
+   recognises the owner/deployer from the public `owner` commitment and
+   `deployerId`.
 
 ### 3.2 Contract lifecycle (happy path)
 
 ```mermaid
 flowchart LR
-    ADMIN[Admin] -->|1 setPolicy| POLICY[policy: minAge, KYC, jurisdictions]
-    ADMIN[Admin] -->|2 registerIssuer| ISSUERS[issuers: issuerId → ACTIVE]
+    OWNER[Owner] -->|1 setPolicy| POLICY[policy: minAge, KYC, jurisdictions]
+    OWNER[Owner] -->|2 registerIssuer| ISSUERS[issuers: issuerId → ACTIVE]
     USER[User] -->|3 registerCredential<br/>proves issuer-signed claims<br/>satisfy the active policy| SUBJECTS[subjects: pseudonym → ACTIVE]
     USER -->|4 requestPermit| PERMITS[permits: permitId → VALID]
     USER -->|5 consumePermit| CONSUMED[permitId → CONSUMED]
@@ -190,6 +198,14 @@ browser app, so the same deployment works end-to-end in all three.
 
 ### 4.1 Web UI (browser, Lace wallet)
 
+The browser session builds a **fresh in-memory private state with a random owner
+secret** — it can never reproduce the deployer's seed-derived owner secret. It
+*can* recognise the deployer/owner through the public deployment identity:
+`deployerId` (re-derived from the connected wallet address) and the on-chain
+`owner` commitment. Owner-only steps (policy activation, issuer registration)
+are therefore executed through the **CLI/deployment path**, which re-derives the
+owner secret from the deploy seed; the browser runs the **user** steps.
+
 ```mermaid
 sequenceDiagram
     participant U as User (browser)
@@ -197,6 +213,7 @@ sequenceDiagram
     participant A as ProofGate UI
     participant C as ProofGate contract
     participant I as Indexer
+    participant D as Deployer wallet / CLI
 
     U->>A: Open UI (http://127.0.0.1:8080)
     A->>W: "Connect wallet (preview)"
@@ -205,21 +222,15 @@ sequenceDiagram
     A->>A: issue in-page demo credential<br/>(demo issuer sk=42 signs a fresh subject key)
     A->>I: query contract state (polls every 10s)
     I-->>A: public ledger view (policy, issuers, subjects, permits)
+    A->>A: recognise owner via on-chain owner commitment + deployerId (read-only)
 
     rect rgb(240,248,255)
-        Note over U,C: ADMIN — activate the demo policy
-        U->>A: click "Activate demo policy"
-        A->>A: build ZK proof in-wallet (proves admin secret)
-        A->>C: tx setPolicy(policyId, version, minAge, kycLevel,<br/>credVersion, jurisdictionCommitment, jurisdictions)
-        C-->>A: activePolicyId/Version + requirements stored
-    end
-
-    rect rgb(240,248,255)
-        Note over U,C: ADMIN — register demo issuer
-        U->>A: click "Register demo issuer"
-        A->>A: build ZK proof in-wallet (proves admin secret)
-        A->>C: tx registerIssuer(pubX, pubY, metadataHash)
-        C-->>A: issuers[issuerId] = ACTIVE
+        Note over D,C: OWNER (CLI/deploy path — re-derives owner secret from the deploy seed)
+        D->>D: derive ownerSecret = ownerSecretFromSeed(seed)
+        D->>C: tx setPolicy(policyId, version, minAge, kycLevel,<br/>credVersion, jurisdictionCommitment, jurisdictions)
+        C-->>D: activePolicyId/Version + requirements stored
+        D->>C: tx registerIssuer(pubX, pubY, metadataHash)
+        C-->>D: issuers[issuerId] = ACTIVE
     end
 
     rect rgb(255,250,240)
@@ -253,18 +264,22 @@ sequenceDiagram
 
 ```
 npm run cli -- info                                     # read-only ledger summary
-npm run cli -- set-policy <policyIdHex> [minAge] [kyc]  # admin: activate a policy
-npm run cli -- register-issuer <xHex> <yHex>            # admin: register KYC issuer
+npm run cli -- set-policy <policyIdHex> [minAge] [kyc]  # owner: activate a policy
+npm run cli -- register-issuer <xHex> <yHex>            # owner: register KYC issuer
+npm run cli -- transfer-ownership <ownerHex>            # owner: transfer governance
 npm run cli -- register-credential                      # user: register credential (ZK)
-npm run cli -- attest-compliance                        # user: prove compliance (ZK)
 npm run cli -- request-permit <feature> [expiry]        # user: request one-time permit
 npm run cli -- consume-permit <feature> <idHex>         # user: spend the permit once
 npm run cli -- demo                                     # full happy-path walkthrough
 ```
 
-The CLI mirrors the UI flow but proves via a **locally-run official proof server**
-(`:6300`, Docker — CLI-only, since no hosted public proof server exists), while the
-browser proves **in-wallet**. The CLI keeps private state in an **encrypted on-disk
+The CLI mirrors the UI flow and proves via a **locally-run official proof server**
+(`:6300`, Docker — no hosted public proof server exists). The browser does the
+**same**: the Lace wallet's own proving backend cannot prove ProofGate's custom
+circuits ("key not found: <circuit>"), so the dApp sets `VITE_PROOF_SERVER_URL`
+and proves via `httpClientProofProvider` against the same local proof server
+(the wallet still signs, balances, and submits). The CLI keeps private state in
+an **encrypted on-disk
 LevelDB** (`levelPrivateStateProvider`) rather than memory. The demo flow registers
 the **same** demo issuer key the browser uses (sk = 42), so CLI- and browser-deployed
 contracts interoperate.
@@ -284,7 +299,7 @@ contracts interoperate.
 | `rx`, `ry`, `s` | wallet private state only | Schnorr signature |
 | `permitSalt` | generated fresh per request | 32 random bytes |
 | pseudonym `subjectKey(domain, pk)` | **on-chain** | persistentHash(domain ∥ pk) |
-| `adminPk` | **on-chain** | persistentHash(admin secret) |
+| `owner`, `deployerId` | **on-chain** | persistentHash(owner secret) / persistentHash(deploy wallet address) |
 | `credentialId` (revocation id) | **on-chain** (on the Subject record) | fresh random 32 bytes |
 | policy (`minimumAge`, `requiredKycLevel`, …) | **on-chain** | `18`, `2`, … |
 | `issuers`, `subjects`, `permits`, `revoked` maps | **on-chain** | commitments + statuses |
@@ -293,7 +308,8 @@ contracts interoperate.
 
 ```text
 contractDomain          : Bytes<32>                 // instance domain (binds credentials)
-adminPk                 : Bytes<32>                 // admin commitment
+owner                   : Bytes<32>                 // owner commitment (ownerKey(ownerSecret))
+deployerId              : Bytes<32>                 // deployer identity (persistentHash of deploy address)
 activePolicyId          : Bytes<32>                 // current policy id (zero before setPolicy)
 activePolicyVersion     : Uint<8>                   // current policy version
 minimumAge              : Uint<8>                   // minimum eligible age
@@ -341,22 +357,23 @@ flowchart TD
 
 | Circuit | Private proof asserts | Public write |
 |---|---|---|
-| `setPolicy` | caller is admin (`adminKey(secret) == adminPk`) | active policy + `jurisdictionCommitment` stored |
-| `registerIssuer` | caller is admin | `issuers[issuerId] = ACTIVE` (pkX/pkY published) |
-| `setIssuerStatus` | caller is admin | `issuers[issuerId].status = SUSPENDED/REVOKED/ACTIVE` |
+| `setPolicy` | caller is owner (`ownerKey(secret) == owner`) | active policy + `jurisdictionCommitment` stored |
+| `registerIssuer` | caller is owner | `issuers[issuerId] = ACTIVE` (pkX/pkY published) |
+| `setIssuerStatus` | caller is owner | `issuers[issuerId].status = SUSPENDED/REVOKED/ACTIVE` |
 | `registerCredential` | signature verifies under registered+active issuer, subject owns the signed key, signed claims satisfy the active policy, credential not yet/not expired, jurisdiction ∈ policy list | `subjects[pseudonym] = ACTIVE` |
-| `revokeCredential` / `unrevokeCredential` | caller is admin (by credId) | `revoked ∪ {credId}` / `revoked − {credId}` |
-| `setSubjectStatus` | caller is admin | `subjects[pseudonym].status = ACTIVE/SUSPENDED/REVOKED` |
+| `revokeCredential` / `unrevokeCredential` | caller is owner (by credId) | `revoked ∪ {credId}` / `revoked − {credId}` |
+| `setSubjectStatus` | caller is owner | `subjects[pseudonym].status = ACTIVE/SUSPENDED/REVOKED` |
 | `requestPermit` | owns ACTIVE credential, expiry in future | `permits[permitId] = VALID` (fresh salt → unlinkable id) |
 | `consumePermit` | owns the permit, holder matches, feature matches, VALID, unexpired | `permits[permitId] = CONSUMED` |
-| `revokePermit` | caller is admin | `permits[permitId] = REVOKED` |
-| `rotateAdmin` | caller is admin | `adminPk = newAdminPk` |
+| `revokePermit` | caller is owner | `permits[permitId] = REVOKED` |
+| `transferOwnership` | caller is owner, `newOwner ≠ owner`, `newOwner ≠ 0` | `owner = newOwner` |
 
-Pure helpers (`adminKey`, `issuerId`, `subjectKey`) compute commitments off-chain
-and are mirrored in-circuit. `checkSignature` and `checkPossession` are
-non-mutating circuit predicates that `registerCredential` and `requestPermit`
-compose in-circuit on chain (and that the SDK also exposes for standalone
-off-chain checks).
+Pure helpers (`ownerKey`, `issuerId`, `subjectKey`) compute commitments
+off-chain and are mirrored in-circuit. `checkSignature`, `checkPossession` and
+`checkCredential` are non-mutating circuit predicates that `registerCredential`
+composes in-circuit on chain (and that the SDK also exposes for standalone
+off-chain checks). `deployerId` is computed off-chain only (`src/schnorr.ts`)
+and is passed to the constructor as a plain argument.
 
 ---
 

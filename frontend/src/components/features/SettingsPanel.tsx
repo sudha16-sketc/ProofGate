@@ -68,8 +68,8 @@ export function SettingsPanel({ navigate }: { navigate: (route: string) => void 
                   </span>
                 </div>
                 <div className="row-between" style={{ gap: 16 }}>
-                  <span className="caption k">Admin session</span>
-                  <span>{meta?.isAdmin ? 'yes (demo deployer)' : 'no'}</span>
+                  <span className="caption k">Owner session</span>
+                  <span>{meta?.isOwner ? 'yes' : 'no'}</span>
                 </div>
               </>
             )}

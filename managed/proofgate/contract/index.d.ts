@@ -34,7 +34,7 @@ export type Permit = { holder: Uint8Array;
                      };
 
 export type Witnesses<PS> = {
-  adminSecret(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
+  ownerSecret(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
   subjectSk(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
   subjectPkX(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
   subjectPkY(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
@@ -69,8 +69,8 @@ export type ImpureCircuits<PS> = {
   checkCredential(context: __compactRuntime.CircuitContext<PS>,
                   juris_0: Uint8Array[],
                   domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
-  rotateAdmin(context: __compactRuntime.CircuitContext<PS>,
-              newAdminPk_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  transferOwnership(context: __compactRuntime.CircuitContext<PS>,
+                    newOwner_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   setPolicy(context: __compactRuntime.CircuitContext<PS>,
             policyIdParam_0: Uint8Array,
             versionParam_0: bigint,
@@ -111,8 +111,8 @@ export type ProvableCircuits<PS> = {
   checkCredential(context: __compactRuntime.CircuitContext<PS>,
                   juris_0: Uint8Array[],
                   domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
-  rotateAdmin(context: __compactRuntime.CircuitContext<PS>,
-              newAdminPk_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  transferOwnership(context: __compactRuntime.CircuitContext<PS>,
+                    newOwner_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   setPolicy(context: __compactRuntime.CircuitContext<PS>,
             policyIdParam_0: Uint8Array,
             versionParam_0: bigint,
@@ -150,13 +150,13 @@ export type ProvableCircuits<PS> = {
 }
 
 export type PureCircuits = {
-  adminKey(sk_0: Uint8Array): Uint8Array;
+  ownerKey(sk_0: Uint8Array): Uint8Array;
   issuerId(pkX_0: Uint8Array, pkY_0: Uint8Array): Uint8Array;
   subjectKey(domain_0: Uint8Array, pkX_0: Uint8Array, pkY_0: Uint8Array): Uint8Array;
 }
 
 export type Circuits<PS> = {
-  adminKey(context: __compactRuntime.CircuitContext<PS>, sk_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  ownerKey(context: __compactRuntime.CircuitContext<PS>, sk_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
   issuerId(context: __compactRuntime.CircuitContext<PS>,
            pkX_0: Uint8Array,
            pkY_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
@@ -170,8 +170,8 @@ export type Circuits<PS> = {
   checkCredential(context: __compactRuntime.CircuitContext<PS>,
                   juris_0: Uint8Array[],
                   domain_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
-  rotateAdmin(context: __compactRuntime.CircuitContext<PS>,
-              newAdminPk_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  transferOwnership(context: __compactRuntime.CircuitContext<PS>,
+                    newOwner_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   setPolicy(context: __compactRuntime.CircuitContext<PS>,
             policyIdParam_0: Uint8Array,
             versionParam_0: bigint,
@@ -210,7 +210,8 @@ export type Circuits<PS> = {
 
 export type Ledger = {
   readonly contractDomain: Uint8Array;
-  readonly adminPk: Uint8Array;
+  readonly owner: Uint8Array;
+  readonly deployerId: Uint8Array;
   readonly activePolicyId: Uint8Array;
   readonly activePolicyVersion: bigint;
   readonly minimumAge: bigint;
@@ -259,7 +260,8 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   constructor(witnesses: W);
   initialState(context: __compactRuntime.ConstructorContext<PS>,
                contractDomainParam_0: Uint8Array,
-               adminPkParam_0: Uint8Array): __compactRuntime.ConstructorResult<PS>;
+               ownerParam_0: Uint8Array,
+               deployerIdParam_0: Uint8Array): __compactRuntime.ConstructorResult<PS>;
 }
 
 export declare function ledger(state: __compactRuntime.StateValue | __compactRuntime.ChargedState): Ledger;

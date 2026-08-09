@@ -24,13 +24,13 @@ import {
   DEFAULT_POLICY_ID,
   DEFAULT_POLICY_VERSION,
   JURISDICTIONS,
-  adminKey,
   createDemoPrivateState,
   demoIssuerSk,
   hex,
   jurisdictionCommitment,
   jurisdictionSlots,
   le32,
+  ownerKey,
   pad32,
   publicKey,
   type ProofGatePrivateState,
@@ -112,7 +112,8 @@ function subscribe(listener: () => void): () => void {
 function computeMeta(): SessionMeta | null {
   if (!_ledger || !privateStateRef) return null;
   if (_metaSource !== ledgerVersion) {
-    _meta = deriveMeta(_ledger, privateStateRef);
+    const conn = getConnectionState();
+    _meta = deriveMeta(_ledger, privateStateRef, conn.status === 'connected' ? conn.address : null);
     _metaSource = ledgerVersion;
   }
   return _meta;
@@ -355,7 +356,7 @@ export function getSessionPrivateState(): ProofGatePrivateState | null {
   return privateStateRef;
 }
 
-/** Replace the session's in-memory private state (used by admin rotation). */
+/** Replace the session's in-memory private state (used by ownership transfer). */
 export function setSessionPrivateState(next: ProofGatePrivateState): void {
   privateStateRef = next;
   void providersRef?.privateStateProvider.set(PRIVATE_STATE_ID, next);
@@ -373,12 +374,28 @@ type RunOptions = {
   circuit: string;
   label: string;
   feature?: string;
+  /** Require this session to be the deployed contract's owner before attempting. */
+  owner?: boolean;
 };
+
+/** True when this session holds the deployed contract's owner secret. */
+function sessionIsOwner(): boolean {
+  return computeMeta()?.isOwner === true;
+}
+
+/** Clear explanation for a wallet that is not the deployed contract's owner. */
+function ownerUnavailableMessage(addr: string): string {
+  return `This wallet is not the owner of ${addr}. Owner actions are restricted to the wallet that holds the deployment's owner secret — no transaction was submitted.`;
+}
 
 /**
  * Run a contract call through the session: records activity, sets busy state,
  * maps errors through `classifyError`, refreshes the ledger, and returns a
  * `TxResult` (or null on failure). No private witness data is ever stored.
+ *
+ * When `opts.owner` is set and the session is known not to be the deployed
+ * contract's owner, the call is rejected up front (logged as failed) and the
+ * transaction is never attempted.
  */
 export async function runContractCall(
   opts: RunOptions,
@@ -389,6 +406,13 @@ export async function runContractCall(
   const addr = _address;
   if (!providers || !handle || !addr) {
     setMessage({ kind: 'error', text: 'Contract session is not ready. Connect your wallet first.' });
+    return null;
+  }
+
+  if (opts.owner && !sessionIsOwner()) {
+    const detail = ownerUnavailableMessage(addr);
+    logActivity({ circuit: opts.circuit, action: opts.label, status: 'failed', detail });
+    setMessage({ kind: 'error', text: `${opts.label}: unavailable — ${detail}`, detail });
     return null;
   }
 
@@ -416,7 +440,7 @@ export async function runContractCall(
 
 export async function activateDemoPolicy(): Promise<TxResult | null> {
   const juris = jurisdictionSlots(JURISDICTIONS);
-  return runContractCall({ circuit: 'setPolicy', label: 'Activate demo policy' }, async (_p, handle) => {
+  return runContractCall({ circuit: 'setPolicy', label: 'Activate demo policy', owner: true }, async (_p, handle) => {
     const tx = await handle.callTx.setPolicy(
       pad32(DEFAULT_POLICY_ID),
       DEFAULT_POLICY_VERSION,
@@ -435,7 +459,7 @@ export async function activateDemoPolicy(): Promise<TxResult | null> {
 
 export async function registerDemoIssuer(): Promise<TxResult | null> {
   const pub = publicKey(demoIssuerSk());
-  return runContractCall({ circuit: 'registerIssuer', label: 'Register demo issuer' }, async (_p, handle) => {
+  return runContractCall({ circuit: 'registerIssuer', label: 'Register demo issuer', owner: true }, async (_p, handle) => {
     const tx = await handle.callTx.registerIssuer(pub.pubX, pub.pubY, new Uint8Array(32));
     return { txId: tx.public.txId };
   });
@@ -490,7 +514,7 @@ export async function setPolicyAction(params: {
   jurisdictions: string[];
 }): Promise<TxResult | null> {
   const juris = jurisdictionSlots(params.jurisdictions);
-  return runContractCall({ circuit: 'setPolicy', label: 'Update policy' }, async (_p, handle) => {
+  return runContractCall({ circuit: 'setPolicy', label: 'Update policy', owner: true }, async (_p, handle) => {
     const tx = await handle.callTx.setPolicy(
       pad32(params.policyId),
       params.version,
@@ -506,7 +530,7 @@ export async function setPolicyAction(params: {
 
 export async function registerIssuerAction(metadataHash?: Uint8Array): Promise<TxResult | null> {
   const pub = publicKey(demoIssuerSk());
-  return runContractCall({ circuit: 'registerIssuer', label: 'Register demo issuer' }, async (_p, handle) => {
+  return runContractCall({ circuit: 'registerIssuer', label: 'Register demo issuer', owner: true }, async (_p, handle) => {
     const tx = await handle.callTx.registerIssuer(pub.pubX, pub.pubY, metadataHash ?? new Uint8Array(32));
     return { txId: tx.public.txId };
   });
@@ -514,7 +538,7 @@ export async function registerIssuerAction(metadataHash?: Uint8Array): Promise<T
 
 export async function setIssuerStatusAction(pkXHex: string, pkYHex: string, status: number): Promise<TxResult | null> {
   return runContractCall(
-    { circuit: 'setIssuerStatus', label: `Set issuer status (${status})` },
+    { circuit: 'setIssuerStatus', label: `Set issuer status (${status})`, owner: true },
     async (_p, handle) => {
       const tx = await handle.callTx.setIssuerStatus(toBytes32(pkXHex), toBytes32(pkYHex), status as never);
       return { txId: tx.public.txId };
@@ -523,14 +547,14 @@ export async function setIssuerStatusAction(pkXHex: string, pkYHex: string, stat
 }
 
 export async function revokeCredentialAction(credIdHex: string): Promise<TxResult | null> {
-  return runContractCall({ circuit: 'revokeCredential', label: 'Revoke credential' }, async (_p, handle) => {
+  return runContractCall({ circuit: 'revokeCredential', label: 'Revoke credential', owner: true }, async (_p, handle) => {
     const tx = await handle.callTx.revokeCredential(toBytes32(credIdHex));
     return { txId: tx.public.txId };
   });
 }
 
 export async function unrevokeCredentialAction(credIdHex: string): Promise<TxResult | null> {
-  return runContractCall({ circuit: 'unrevokeCredential', label: 'Un-revoke credential' }, async (_p, handle) => {
+  return runContractCall({ circuit: 'unrevokeCredential', label: 'Un-revoke credential', owner: true }, async (_p, handle) => {
     const tx = await handle.callTx.unrevokeCredential(toBytes32(credIdHex));
     return { txId: tx.public.txId };
   });
@@ -538,7 +562,7 @@ export async function unrevokeCredentialAction(credIdHex: string): Promise<TxRes
 
 export async function setSubjectStatusAction(subjectPkHex: string, status: number): Promise<TxResult | null> {
   return runContractCall(
-    { circuit: 'setSubjectStatus', label: `Set subject status (${status})` },
+    { circuit: 'setSubjectStatus', label: `Set subject status (${status})`, owner: true },
     async (_p, handle) => {
       const tx = await handle.callTx.setSubjectStatus(toBytes32(subjectPkHex), status as never);
       return { txId: tx.public.txId };
@@ -547,24 +571,24 @@ export async function setSubjectStatusAction(subjectPkHex: string, status: numbe
 }
 
 export async function revokePermitAction(permitIdHex: string): Promise<TxResult | null> {
-  return runContractCall({ circuit: 'revokePermit', label: 'Revoke permit' }, async (_p, handle) => {
+  return runContractCall({ circuit: 'revokePermit', label: 'Revoke permit', owner: true }, async (_p, handle) => {
     const tx = await handle.callTx.revokePermit(toBytes32(permitIdHex));
     return { txId: tx.public.txId };
   });
 }
 
-export async function rotateAdminAction(): Promise<TxResult | null> {
+export async function transferOwnershipAction(): Promise<TxResult | null> {
   const current = privateStateRef;
   if (!current) return null;
   const newSecret = new Uint8Array(32);
   crypto.getRandomValues(newSecret);
-  const newCommitment = adminKey(newSecret);
-  const result = await runContractCall({ circuit: 'rotateAdmin', label: 'Rotate admin key' }, async (_p, handle) => {
-    const tx = await handle.callTx.rotateAdmin(newCommitment);
+  const newCommitment = ownerKey(newSecret);
+  const result = await runContractCall({ circuit: 'transferOwnership', label: 'Transfer ownership', owner: true }, async (_p, handle) => {
+    const tx = await handle.callTx.transferOwnership(newCommitment);
     return { txId: tx.public.txId };
   });
   if (result) {
-    setSessionPrivateState({ ...current, adminSecret: newSecret });
+    setSessionPrivateState({ ...current, ownerSecret: newSecret });
   }
   return result;
 }

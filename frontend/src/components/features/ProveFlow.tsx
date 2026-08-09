@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useSessionBusy,
+  useSessionAddress,
   useSessionMeta,
   useSessionStatus,
   activateDemoPolicy,
@@ -54,6 +55,7 @@ export function ProveFlow({
   const meta = useSessionMeta();
   const status = useSessionStatus();
   const busy = useSessionBusy();
+  const address = useSessionAddress();
   const [feature, setFeature] = useState<FeatureId>(initialFeature ?? FEATURES.rwaPurchase);
   const [phase, setPhase] = useState<Phase>('review');
   const [stepIndex, setStepIndex] = useState(0);
@@ -79,13 +81,19 @@ export function ProveFlow({
     return list;
   }, [meta]);
 
+  // The policy/issuer steps are owner-only. When they are still pending and the
+  // connected wallet is known not to be the owner, block the flow up front so no
+  // transaction is ever attempted.
+  const ownerNeeded = !meta?.policyActive || !meta?.demoIssuerActive;
+  const ownerBlocked = ownerNeeded && meta?.isOwner !== true;
+
   const stage = useStage(phase === 'running');
   const vizActive = phase === 'running' ? stage : phase === 'done' ? 5 : 0;
   const vizStatus: 'idle' | 'running' | 'done' | 'failed' =
     phase === 'running' ? 'running' : phase === 'done' ? 'done' : phase === 'failed' ? 'failed' : 'idle';
 
   const run = useCallback(async () => {
-    if (!ready) return;
+    if (!ready || ownerBlocked) return;
     setPhase('running');
     setError(null);
     setStepIndex(0);
@@ -109,7 +117,7 @@ export function ProveFlow({
     }
 
     setPhase('done');
-  }, [ready, steps, feature]);
+  }, [ready, steps, feature, ownerBlocked]);
 
   const currentLabel = phase === 'running' && steps[stepIndex] ? steps[stepIndex]!.label : undefined;
 
@@ -157,6 +165,16 @@ export function ProveFlow({
             <StatusBadge tone="warn">The session is not ready — complete setup first.</StatusBadge>
           )}
 
+          {ownerBlocked && (
+            <div className="error-state" role="alert">
+              <p>
+                Completing this flow first requires owner actions on <span className="mono">{address}</span> —
+                activating the demo policy and registering the demo issuer. This wallet is not the owner of
+                that contract, so the proof flow cannot run here.
+              </p>
+            </div>
+          )}
+
           <div className="row-between">
             <div className="row" style={{ gap: 8 }}>
               <IconLock size={14} className="muted" />
@@ -165,7 +183,7 @@ export function ProveFlow({
             <Button
               variant="primary"
               onClick={() => void run()}
-              disabled={!ready}
+              disabled={!ready || ownerBlocked}
               loading={busy !== null}
               icon={<IconShieldCheck size={16} />}
             >

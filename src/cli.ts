@@ -3,14 +3,18 @@
  *
  * Usage:
  *   npm run cli -- info                                  # read-only contract summary via indexer
- *   npm run cli -- set-policy <policyIdHex> [minAge]     # admin: activate a compliance policy
- *   npm run cli -- register-issuer <pkXHex> <pkYHex>     # admin: register a trusted KYC issuer
+ *   npm run cli -- set-policy <policyIdHex> [minAge]     # owner: activate a compliance policy
+ *   npm run cli -- register-issuer <pkXHex> <pkYHex>     # owner: register a trusted KYC issuer
+ *   npm run cli -- transfer-ownership <ownerHex>         # owner: transfer governance to a new owner
  *   npm run cli -- register-credential                   # user: register an issuer-signed credential (ZK)
  *   npm run cli -- request-permit <feature> [expiry]     # user: request a one-time permit
  *   npm run cli -- consume-permit <feature> <permitIdHex># user: spend the permit once
  *   npm run cli -- demo                                  # full happy-path walkthrough
  *
- * Append `-- --network preview` to target a public network.
+ * The CLI wallet's owner secret is derived deterministically from the wallet
+ * seed (label "owner-sk"), so the deploy wallet is the initial owner and can
+ * execute every owner action above. Append `-- --network preview` to target a
+ * public network.
  *
  * PRIVACY: the wallet's private inputs (subject secret key, the credential
  * signature, age, jurisdiction) are read from private state, used to build the
@@ -133,26 +137,34 @@ async function readCurrentLedger(networkConfig: any, contractAddress: string) {
 }
 
 async function printInfo(network: any, networkConfig: any, contractAddress: string): Promise<void> {
-  const l = await readCurrentLedger(networkConfig, contractAddress);
   console.log(`\nProofGate on ${network}: ${contractAddress}`);
-  console.log(`  contractDomain         : ${hex(l.contractDomain)}`);
-  console.log(`  adminPk                : ${hex(l.adminPk)}`);
-  console.log(`  activePolicyId         : ${hex(l.activePolicyId)}`);
-  console.log(`  activePolicyVersion    : ${l.activePolicyVersion.toString()}`);
-  console.log(`  minimumAge             : ${l.minimumAge.toString()}`);
-  console.log(`  requiredKycLevel       : ${l.requiredKycLevel.toString()}`);
-  console.log(`  requiredCredentialVer. : ${l.requiredCredentialVersion.toString()}`);
-  console.log(`  registered issuers     : ${l.issuers.size().toString()}`);
-  console.log(`  subjects               : ${l.subjects.size().toString()}`);
-  for (const [pk, s] of l.subjects) {
+  try {
+    const l = await readCurrentLedger(networkConfig, contractAddress);
+    console.log(`  contractDomain         : ${hex(l.contractDomain)}`);
+    console.log(`  owner                  : ${hex(l.owner)}`);
+    console.log(`  deployerId             : ${hex(l.deployerId)}`);
+    console.log(`  activePolicyId         : ${hex(l.activePolicyId)}`);
+    console.log(`  activePolicyVersion    : ${l.activePolicyVersion.toString()}`);
+    console.log(`  minimumAge             : ${l.minimumAge.toString()}`);
+    console.log(`  requiredKycLevel       : ${l.requiredKycLevel.toString()}`);
+    console.log(`  requiredCredentialVer. : ${l.requiredCredentialVersion.toString()}`);
+    console.log(`  registered issuers     : ${l.issuers.size().toString()}`);
+    console.log(`  subjects               : ${l.subjects.size().toString()}`);
+    for (const [pk, s] of l.subjects) {
+      console.log(
+        `    - subject ${hex(pk)} status=${s.status} kycLevel=${s.kycLevel.toString()} expiresAt=${s.expiresAt.toString()}`,
+      );
+    }
+    console.log(`  permits                : ${l.permits.size().toString()}`);
+    for (const [id, p] of l.permits) {
+      console.log(
+        `    - permit ${hex(id)} feature=${new TextDecoder().decode(p.feature)} holder=${hex(p.holder)} status=${p.status} expiresAt=${p.expiresAt.toString()}`,
+      );
+    }
+  } catch {
     console.log(
-      `    - subject ${hex(pk)} status=${s.status} kycLevel=${s.kycLevel.toString()} expiresAt=${s.expiresAt.toString()}`,
-    );
-  }
-  console.log(`  permits                : ${l.permits.size().toString()}`);
-  for (const [id, p] of l.permits) {
-    console.log(
-      `    - permit ${hex(id)} feature=${new TextDecoder().decode(p.feature)} holder=${hex(p.holder)} status=${p.status} expiresAt=${p.expiresAt.toString()}`,
+      '  ⚠️  Contract state is not readable with this build. The deployed contract is likely an\n' +
+        '      older ProofGate version (pre owner/deployerId). Redeploy with `npm run deploy`.\n',
     );
   }
 }
@@ -272,8 +284,9 @@ async function main(): Promise<void> {
 ProofGate CLI — ${network} — ${contractAddress}
 
   info                          read-only contract summary via indexer
-  set-policy <policyIdHex>      admin: activate a compliance policy (defaults: minAge 18, KYC 2)
-  register-issuer <xHex> <yHex> admin: register a trusted KYC issuer (Jubjub pubkey coords)
+  set-policy <policyIdHex>      owner: activate a compliance policy (defaults: minAge 18, KYC 2)
+  register-issuer <xHex> <yHex> owner: register a trusted KYC issuer (Jubjub pubkey coords)
+  transfer-ownership <ownerHex> owner: transfer governance to a new owner commitment
   register-credential           user: register an issuer-signed credential proving policy compliance (ZK)
   request-permit <feature> [t]  user: request a one-time permit (t = unix expiry, default now+1h)
   consume-permit <f> <idHex>    user: consume a permit exactly once
@@ -329,6 +342,16 @@ ProofGate CLI — ${network} — ${contractAddress}
       const tx = await found.callTx.registerIssuer(issuerPkX, issuerPkY, new Uint8Array(32));
       printPrivacyBanner();
       console.log(`✅ issuer registered. txId=${tx.public.txId}`);
+      break;
+    }
+    case 'transfer-ownership': {
+      const ownerHex = args[1];
+      if (!ownerHex) throw new Error('usage: transfer-ownership <newOwnerCommitmentHex>');
+      const newOwner = Uint8Array.from(Buffer.from(ownerHex, 'hex'));
+      if (newOwner.length !== 32) throw new Error('new owner commitment must be exactly 32 bytes');
+      const tx = await found.callTx.transferOwnership(newOwner);
+      printPrivacyBanner();
+      console.log(`✅ ownership transferred to ${ownerHex}. txId=${tx.public.txId}`);
       break;
     }
     case 'register-credential': {

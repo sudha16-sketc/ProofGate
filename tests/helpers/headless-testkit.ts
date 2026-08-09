@@ -33,6 +33,11 @@ import { publicKey } from '../../src/schnorr.js';
 
 type CircuitName = keyof Circuits<any>;
 
+/** Deterministic test deployer identity used by headless deployments. */
+export const TEST_DEPLOYER_ID: Uint8Array = Uint8Array.from(
+  Buffer.from('deadbeef'.padEnd(64, 'ab').slice(0, 64), 'hex'),
+);
+
 /** Typed slice of a circuit call result (the runtime also carries more data). */
 export type CircuitResult = {
   result: unknown;
@@ -100,20 +105,22 @@ export function flattenPublicBytes(
  *
  * @param contractDomain the ProofGate instance domain (constructor arg).
  * @param privateState   the subject's full issuer-signed credential + secrets.
- * @param opts.adminPk   override the admin commitment published at deploy time
- *                 (default: commitment of privateState.adminSecret). Passing a
+ * @param opts.owner     override the owner commitment published at deploy time
+ *                 (default: commitment of privateState.ownerSecret). Passing a
  *                 commitment of a *different* secret simulates a wallet that
- *                 does not know the deployer's admin secret.
+ *                 does not know the deployer's owner secret.
+ * @param opts.deployerId override the deployer identity (default: TEST_DEPLOYER_ID).
  */
 export function deployProofGate(
   contractDomain: Uint8Array,
   privateState: ProofGatePrivateState,
-  opts: { adminPk?: Uint8Array } = {},
+  opts: { owner?: Uint8Array; deployerId?: Uint8Array } = {},
 ): HeadlessProofGate {
   const time = Math.floor(Date.now() / 1000);
   const contract = new Contract(createWitnesses(privateState));
 
-  const adminPk = opts.adminPk ?? pureCircuits.adminKey(privateState.adminSecret);
+  const owner = opts.owner ?? pureCircuits.ownerKey(privateState.ownerSecret);
+  const deployerIdentity = opts.deployerId ?? TEST_DEPLOYER_ID;
   const zswapLocalState: EncodedZswapLocalState = emptyZswapLocalState({
     bytes: new Uint8Array(32).fill(0x01),
   });
@@ -121,14 +128,59 @@ export function deployProofGate(
   const init = contract.initialState(
     { initialPrivateState: privateState, initialZswapLocalState: zswapLocalState },
     contractDomain,
-    adminPk,
+    owner,
+    deployerIdentity,
   );
 
-  const context = createCircuitContext(
-    dummyContractAddress(),
-    zswapLocalState.coinPublicKey,
+  return buildHarness(
+    contract,
+    privateState,
     init.currentContractState.data,
     init.currentPrivateState,
+    zswapLocalState.coinPublicKey,
+    time,
+  );
+}
+
+/**
+ * Resume the same deployed contract from a *different* wallet's private state.
+ *
+ * Keeps the current ledger state and block time but swaps the ZK witnesses to
+ * those of `privateState` — exactly what happens when a different wallet signs
+ * in to an already-deployed contract. Used to test ownership transfer and
+ * owner-secret turnover without re-deploying.
+ */
+export function resumeProofGate(
+  pg: HeadlessProofGate,
+  privateState: ProofGatePrivateState,
+): HeadlessProofGate {
+  const contract = new Contract(createWitnesses(privateState));
+  const zswapLocalState: EncodedZswapLocalState = emptyZswapLocalState({
+    bytes: new Uint8Array(32).fill(0x01),
+  });
+  return buildHarness(
+    contract,
+    privateState,
+    pg.context.currentQueryContext.state,
+    privateState,
+    zswapLocalState.coinPublicKey,
+    pg.time,
+  );
+}
+
+function buildHarness(
+  contract: Contract,
+  privateState: ProofGatePrivateState,
+  initialStateData: Parameters<typeof createCircuitContext>[2],
+  initialPrivateState: ProofGatePrivateState,
+  coinPublicKey: Parameters<typeof createCircuitContext>[1],
+  time: number,
+): HeadlessProofGate {
+  const context = createCircuitContext(
+    dummyContractAddress(),
+    coinPublicKey,
+    initialStateData,
+    initialPrivateState,
     undefined,
     undefined,
     time,
@@ -147,7 +199,7 @@ export function deployProofGate(
       harness.time += seconds;
       harness.context = createCircuitContext(
         dummyContractAddress(),
-        zswapLocalState.coinPublicKey,
+        coinPublicKey,
         harness.context.currentQueryContext.state,
         harness.context.currentPrivateState,
         undefined,
@@ -164,7 +216,7 @@ export function deployProofGate(
       const results = circuit(harness.context, ...args);
       harness.context = createCircuitContext(
         dummyContractAddress(),
-        zswapLocalState.coinPublicKey,
+        coinPublicKey,
         results.context.currentQueryContext.state,
         results.context.currentPrivateState,
         undefined,

@@ -14,10 +14,11 @@ import {
   persistentHash,
 } from '@midnight-ntwrk/compact-runtime';
 import {
-  adminKey,
+  deployerId,
   issuerId,
   keypair,
   le32,
+  ownerKey,
   pad32,
   publicKey,
   randomBytes32,
@@ -26,7 +27,7 @@ import {
   type CredentialMessage,
 } from './schnorr';
 
-export { pad32, le32, randomBytes32, adminKey, issuerId, subjectKey };
+export { pad32, le32, randomBytes32, deployerId, ownerKey, issuerId, subjectKey };
 export { keypair, publicKey, signCredential, verifyCredential, randScalar, CURVE_ORDER, DOMAIN } from './schnorr';
 export type { CredentialMessage, JubjubKeyPair, SchnorrSignature } from './schnorr';
 
@@ -40,8 +41,8 @@ export type { CredentialMessage, JubjubKeyPair, SchnorrSignature } from './schno
  * binds the credential to this wallet.
  */
 export type ProofGatePrivateState = {
-  /** Admin master secret (proves admin in admin-only circuits). */
-  adminSecret: Uint8Array;
+  /** Owner master secret (proves ownership in owner-only circuits). */
+  ownerSecret: Uint8Array;
   /** Subject secret key scalar (LE field element). */
   subjectSk: Uint8Array;
   /** Subject public key X coordinate (32-byte LE field element). */
@@ -118,7 +119,7 @@ export const DEFAULT_DOMAIN = pad32('ProofGate:canonical:test:v1');
 /**
  * Deterministic demo issuer for local/headless tests: sk = 42.
  * The in-browser demo credential is signed with this key, and the "Register
- * demo issuer" admin action publishes its public key — so the CLI demo
+ * demo issuer" owner action publishes its public key — so the CLI demo
  * (`npm run cli -- demo`), the headless tests and this page all interoperate.
  * NEVER use a fixed scalar in production; this is a demo convenience.
  */
@@ -146,7 +147,7 @@ export function sleep(ms: number): Promise<void> {
  * (fresh permit id each time).
  */
 export const createWitnesses = (): Witnesses<ProofGatePrivateState> => ({
-  adminSecret: (ctx) => [ctx.privateState, ctx.privateState.adminSecret],
+  ownerSecret: (ctx) => [ctx.privateState, ctx.privateState.ownerSecret],
   subjectSk: (ctx) => [ctx.privateState, ctx.privateState.subjectSk],
   subjectPkX: (ctx) => [ctx.privateState, ctx.privateState.subjectPubX],
   subjectPkY: (ctx) => [ctx.privateState, ctx.privateState.subjectPubY],
@@ -221,7 +222,7 @@ export function createDemoPrivateState(opts: { contractDomain?: Uint8Array } = {
   const sig = signCredential(demoIssuerSk(), message);
 
   return {
-    adminSecret: randomBytes32(),
+    ownerSecret: randomBytes32(),
     subjectSk: le32(subject.sk),
     subjectPubX: subject.pubX,
     subjectPubY: subject.pubY,
@@ -251,13 +252,13 @@ export function createDemoPrivateState(opts: { contractDomain?: Uint8Array } = {
 
 /**
  * Fresh private state with NO credential and a random subject secret key.
- * The admin secret is random (the deployer becomes the admin via its
+ * The owner secret is random (the deployer becomes the owner via its
  * commitment in the constructor).
  */
 export function freshPrivateState(): ProofGatePrivateState {
   const subject = keypair();
   return {
-    adminSecret: randomBytes32(),
+    ownerSecret: randomBytes32(),
     subjectSk: le32(subject.sk),
     subjectPubX: subject.pubX,
     subjectPubY: subject.pubY,

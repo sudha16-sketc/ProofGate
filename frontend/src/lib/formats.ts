@@ -140,7 +140,7 @@ export const CIRCUIT_LABELS: Record<string, string> = {
   requestPermit: 'Request permit',
   consumePermit: 'Consume permit',
   revokePermit: 'Revoke permit',
-  rotateAdmin: 'Rotate admin key',
+  transferOwnership: 'Transfer ownership',
 };
 
 export function circuitLabel(name: string): string {

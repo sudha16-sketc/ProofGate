@@ -10,6 +10,17 @@
 //   eligibility into an enforceable one-time permit that third-party dApps can
 //   verify and consume.
 //
+// OWNERSHIP MODEL:
+//   * owner       — a 32-byte commitment to the current owner secret. Only the
+//                   party holding that secret can transfer ownership, change
+//                   the policy, or manage registrations.
+//   * deployerId  — the cryptographic identity of the deployer wallet, fixed
+//                   at construction for accountability (never changes).
+//   Deployment derives the owner secret from the deploy seed, so the deployer
+//   *is* the initial owner. The owner secret is never put on-chain; only its
+//   commitment (`owner`) is, and every governance circuit re-proves knowledge
+//   of it via `ownerKey(ownerSecret()) == owner.read()`.
+//
 // SIGNATURE SCHEME (Schnorr over Jubjub, verified IN-CIRCUIT):
 //   * Keygen:  sk_I <-_R [0, r);  P_I = sk_I * G
 //   * Sign(m): k <-_R [0, r);  R = k * G;
@@ -110,7 +121,11 @@ export struct Permit {
 
 export ledger k: Kernel;
 export ledger contractDomain: Bytes<32>;
-export ledger adminPk: Bytes<32>;
+// Public commitment to the current owner secret. Changing it transfers the
+// contract to a new owner (only the current owner may do so).
+export ledger owner: Bytes<32>;
+// Cryptographic identity of the contract deployer, fixed at construction.
+export ledger deployerId: Bytes<32>;
 export ledger activePolicyId: Bytes<32>;
 export ledger activePolicyVersion: Uint<8>;
 export ledger minimumAge: Uint<8>;
@@ -123,8 +138,8 @@ export ledger revoked: Set<Bytes<32>>;
 export ledger permits: Map<Bytes<32>, Permit>;
 export ledger seq: Counter;
 
-// ADMIN PRIVATE: master secret behind adminPk (proves admin in admin circuits).
-witness adminSecret(): Bytes<32>;
+// OWNER PRIVATE: master secret behind `owner` (proves ownership in governance circuits).
+witness ownerSecret(): Bytes<32>;
 // SUBJECT PRIVATE: the scalar whose public key the issuer signed.
 witness subjectSk(): Bytes<32>;
 witness subjectPkX(): Bytes<32>;
@@ -157,17 +172,21 @@ witness s(): Bytes<32>;
 // PER-PERMIT RANDOMNESS: makes permit ids unlinkable.
 witness permitSalt(): Bytes<32>;
 
-constructor(contractDomainParam: Bytes<32>, adminPkParam: Bytes<32>) {
+constructor(contractDomainParam: Bytes<32>, ownerParam: Bytes<32>, deployerIdParam: Bytes<32>) {
   contractDomain = disclose(contractDomainParam);
-  adminPk = disclose(adminPkParam);
+  owner = disclose(ownerParam);
+  deployerId = disclose(deployerIdParam);
 }
 
 // ---------------------------------------------------------------------------
 // HASH IDENTIFIERS (domain-separated commitments)
 // ---------------------------------------------------------------------------
 
-export circuit adminKey(sk: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "ProofGateAdmin:v1"), sk]);
+// Commitment to the current owner secret. The deployer's owner secret is
+// derived from the deployment seed (see src/deploy.ts); the commitment is the
+// only thing that ever reaches the chain.
+export circuit ownerKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "ProofGateOwner:v1"), sk]);
 }
 
 export circuit issuerId(pkX: Bytes<32>, pkY: Bytes<32>): Bytes<32> {
@@ -280,17 +299,21 @@ export circuit checkCredential(juris: Vector<8, Bytes<32>>, domain: Bytes<32>): 
 }
 
 // ---------------------------------------------------------------------------
-// GOVERNANCE — explicit admin rotation (temporary trust model, see docs).
+// OWNERSHIP — explicit transfer to a new owner. Only the current owner (holder
+// of the owner secret behind `owner`) may transfer; the new owner commitment
+// must differ from the current one and be nonzero.
 // ---------------------------------------------------------------------------
 
-export circuit rotateAdmin(newAdminPk: Bytes<32>): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
-  adminPk = disclose(newAdminPk);
+export circuit transferOwnership(newOwner: Bytes<32>): [] {
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
+  assert(newOwner != owner.read(), "new owner must differ from the current owner");
+  assert(newOwner != pad(32, ""), "new owner must be nonzero");
+  owner = disclose(newOwner);
   seq.increment(1);
 }
 
 // ---------------------------------------------------------------------------
-// POLICY — versioned, admin-governed. Never silently retrofits old credentials.
+// POLICY — versioned, owner-governed. Never silently retrofits old credentials.
 // ---------------------------------------------------------------------------
 
 export circuit setPolicy(
@@ -302,7 +325,7 @@ export circuit setPolicy(
   jurisdictionCommitmentParam: Bytes<32>,
   jurisdictionsParam: Vector<8, Bytes<32>>
 ): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
   assert(versionParam > 0, "policy version must be positive");
   assert(
     persistentHash<Vector<8, Bytes<32>>>(jurisdictionsParam) == disclose(jurisdictionCommitmentParam),
@@ -318,11 +341,11 @@ export circuit setPolicy(
 }
 
 // ---------------------------------------------------------------------------
-// ISSUER REGISTRY — status-tracked, admin-governed.
+// ISSUER REGISTRY — status-tracked, owner-governed.
 // ---------------------------------------------------------------------------
 
 export circuit registerIssuer(issuerPkXParam: Bytes<32>, issuerPkYParam: Bytes<32>, metadataHash: Bytes<32>): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
   const id = disclose(issuerId(disclose(issuerPkXParam), disclose(issuerPkYParam)));
   assert(!issuers.member(id), "issuer already registered");
   issuers.insert(id, Issuer {
@@ -337,7 +360,7 @@ export circuit registerIssuer(issuerPkXParam: Bytes<32>, issuerPkYParam: Bytes<3
 }
 
 export circuit setIssuerStatus(issuerPkXParam: Bytes<32>, issuerPkYParam: Bytes<32>, status: IssuerStatus): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
   const id = disclose(issuerId(disclose(issuerPkXParam), disclose(issuerPkYParam)));
   assert(issuers.member(id), "issuer not registered");
   const issuer = issuers.lookup(id);
@@ -361,23 +384,23 @@ export circuit setIssuerStatus(issuerPkXParam: Bytes<32>, issuerPkYParam: Bytes<
 // ---------------------------------------------------------------------------
 
 export circuit revokeCredential(credIdParam: Bytes<32>): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
   revoked.insert(disclose(credIdParam));
   seq.increment(1);
 }
 
 export circuit unrevokeCredential(credIdParam: Bytes<32>): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
   revoked.remove(disclose(credIdParam));
   seq.increment(1);
 }
 
 // ---------------------------------------------------------------------------
-// SUBJECT STATE — admin may suspend/reactivate/revoke an individual subject.
+// SUBJECT STATE — owner may suspend/reactivate/revoke an individual subject.
 // ---------------------------------------------------------------------------
 
 export circuit setSubjectStatus(subjectPk: Bytes<32>, status: SubjectStatus): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
   assert(subjects.member(disclose(subjectPk)), "subject not found");
   const subject = subjects.lookup(disclose(subjectPk));
   assert(
@@ -510,11 +533,11 @@ export circuit consumePermit(feature: Bytes<32>, permitId: Bytes<32>): [] {
 }
 
 // ---------------------------------------------------------------------------
-// ADMIN: revoke a VALID permit (forfeits the one-time authorization).
+// OWNER: revoke a VALID permit (forfeits the one-time authorization).
 // ---------------------------------------------------------------------------
 
 export circuit revokePermit(permitId: Bytes<32>): [] {
-  assert(adminKey(adminSecret()) == adminPk.read(), "caller is not the admin");
+  assert(ownerKey(ownerSecret()) == owner.read(), "caller is not the owner");
   assert(permits.member(disclose(permitId)), "permit not found");
   const permit = permits.lookup(disclose(permitId));
   assert(permit.status == PermitStatus.VALID, "permit not valid");

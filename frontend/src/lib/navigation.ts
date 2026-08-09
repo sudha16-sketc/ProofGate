@@ -18,7 +18,7 @@ export type RouteId =
   | 'permits'
   | 'ledger'
   | 'trust'
-  | 'admin'
+  | 'owner'
   | 'settings';
 
 export type RouteItem = {
@@ -35,7 +35,7 @@ export const ROUTES: RouteItem[] = [
   { id: 'permits', label: 'Permit Center', icon: IconKey, group: 'workspace' },
   { id: 'ledger', label: 'Public Ledger', icon: IconLedger, group: 'workspace' },
   { id: 'trust', label: 'Security / Trust', icon: IconShieldCheck, group: 'workspace' },
-  { id: 'admin', label: 'Admin', icon: IconGavel, group: 'operate' },
+  { id: 'owner', label: 'Owner', icon: IconGavel, group: 'operate' },
   { id: 'settings', label: 'Settings', icon: IconSettings, group: 'operate' },
 ];
 
@@ -64,8 +64,8 @@ export const ROUTE_TITLES: Record<RouteId, { title: string; lead: string }> = {
     title: 'Security / Trust',
     lead: 'Who verifies what — and what ProofGate never knows.',
   },
-  admin: {
-    title: 'Admin',
+  owner: {
+    title: 'Owner',
     lead: 'Governance actions enforced by the ProofGate contract.',
   },
   settings: {
@@ -78,7 +78,7 @@ export const ROUTE_TITLES: Record<RouteId, { title: string; lead: string }> = {
 export const BOTTOM_NAV: RouteId[] = ['overview', 'credential', 'prove', 'permits'];
 
 /** Routes grouped into the "More" panel on mobile. */
-export const MORE_ROUTES: RouteId[] = ['ledger', 'trust', 'admin', 'settings'];
+export const MORE_ROUTES: RouteId[] = ['ledger', 'trust', 'owner', 'settings'];
 
 export function isRoute(id: string): id is RouteId {
   return ROUTES.some((r) => r.id === id);

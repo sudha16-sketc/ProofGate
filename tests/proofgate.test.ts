@@ -6,7 +6,7 @@
  *
  *   1. Circuit logic — pure commitment circuits (determinism, domain separation,
  *      one-wayness) plus in-circuit Schnorr verification.
- *   2. State transitions — the full admin/user lifecycle over the impure
+ *   2. State transitions — the full owner/user lifecycle over the impure
  *      circuits, including every meaningful rejection path (bad signature,
  *      unregistered issuer, under-age, revoked credential, possession).
  *   3. Privacy — private witnesses (subject secret key, signature, age,
@@ -36,11 +36,12 @@ import {
   FEATURES,
   JURISDICTIONS,
   demoIssuerSk,
-  freshAdminSecret,
+  freshOwnerSecret,
   identifiers,
   issueCredential,
   jurisdictionCommitment,
   jurisdictionSlots,
+  ownerSecretFromSeed,
   pad32,
   type ProofGatePrivateState,
 } from '../src/proofgate.js';
@@ -51,6 +52,8 @@ import {
   flattenPublicBytes,
   hex,
   registerDemoIssuer,
+  resumeProofGate,
+  TEST_DEPLOYER_ID,
   type HeadlessProofGate,
 } from './helpers/headless-testkit.js';
 
@@ -73,7 +76,7 @@ function allLedgerBytes(l: Ledger): Uint8Array[] {
     out.push(id as Uint8Array, is.pkX, is.pkY, is.metadataHash);
   }
   for (const cr of l.revoked) out.push(cr as Uint8Array);
-  out.push(l.contractDomain, l.adminPk, l.activePolicyId, l.jurisdictionCommitment);
+  out.push(l.contractDomain, l.owner, l.deployerId, l.activePolicyId, l.jurisdictionCommitment);
   return out;
 }
 
@@ -124,15 +127,15 @@ function freshDeployed(): { pg: HeadlessProofGate; issuerSk: bigint; privateStat
 // ─── 1. Circuit logic (pure circuits) ────────────────────────────────────────
 
 describe('pure circuits — commitment logic', () => {
-  it('adminKey, subjectKey and issuerId are deterministic and domain-separated', () => {
-    const skA = freshAdminSecret();
-    const skB = freshAdminSecret();
+  it('ownerKey, subjectKey and issuerId are deterministic and domain-separated', () => {
+    const skA = freshOwnerSecret();
+    const skB = freshOwnerSecret();
 
-    const adminA = pureCircuits.adminKey(skA);
-    const adminA2 = pureCircuits.adminKey(skA);
-    const adminB = pureCircuits.adminKey(skB);
-    expect(hex(adminA)).toBe(hex(adminA2)); // deterministic
-    expect(hex(adminA)).not.toBe(hex(adminB)); // differs across secrets
+    const ownerA = pureCircuits.ownerKey(skA);
+    const ownerA2 = pureCircuits.ownerKey(skA);
+    const ownerB = pureCircuits.ownerKey(skB);
+    expect(hex(ownerA)).toBe(hex(ownerA2)); // deterministic
+    expect(hex(ownerA)).not.toBe(hex(ownerB)); // differs across secrets
 
     const { privateState } = freshDeployed();
     const domain = DEFAULT_DOMAIN;
@@ -146,7 +149,7 @@ describe('pure circuits — commitment logic', () => {
     const iid = pureCircuits.issuerId(privateState.issuerPubX, privateState.issuerPubY);
     expect(iid.length).toBe(32);
     expect(hex(iid)).not.toBe(hex(subj)); // domain-separated
-    expect(hex(adminA)).not.toBe(hex(iid)); // domain-separated
+    expect(hex(ownerA)).not.toBe(hex(iid)); // domain-separated
   });
 
   it('commitments are one-way: the public pseudonym is not any secret', () => {
@@ -186,19 +189,30 @@ describe('state transitions — the ProofGate lifecycle', () => {
     pg = freshDeployed().pg;
   });
 
-  it('constructor publishes the domain and admin commitment (public data)', () => {
+  it('constructor publishes the domain, owner commitment and deployer identity (public data)', () => {
     const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar() });
     const pg0 = deployProofGate(DEFAULT_DOMAIN, privateState);
     const l = pg0.ledger();
     expect(hex(l.contractDomain)).toBe(hex(DEFAULT_DOMAIN));
-    expect(hex(l.adminPk)).toBe(hex(pureCircuits.adminKey(privateState.adminSecret)));
+    expect(hex(l.owner)).toBe(hex(pureCircuits.ownerKey(privateState.ownerSecret)));
+    expect(hex(l.deployerId)).toBe(hex(TEST_DEPLOYER_ID));
     expect(l.issuers.isEmpty()).toBe(true);
     expect(l.subjects.isEmpty()).toBe(true);
     expect(l.permits.isEmpty()).toBe(true);
     expect(l.revoked.isEmpty()).toBe(true);
   });
 
-  it('admin activates a policy (published on-chain, governs all credentials)', () => {
+  it('a fresh deployment binds the owner commitment from a known owner secret (seed-derived)', () => {
+    const secret = ownerSecretFromSeed('deploy-seed-a');
+    const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar(), ownerSecret: secret });
+    const pg0 = deployProofGate(DEFAULT_DOMAIN, privateState);
+    expect(hex(pg0.ledger().owner)).toBe(hex(pureCircuits.ownerKey(secret)));
+    // The same seed re-derives the same secret, so a wallet seeded the same way
+    // is the owner of this deployment.
+    expect(hex(pureCircuits.ownerKey(ownerSecretFromSeed('deploy-seed-a')))).toBe(hex(pg0.ledger().owner));
+  });
+
+  it('owner activates a policy (published on-chain, governs all credentials)', () => {
     const l = pg.ledger();
     expect(hex(l.activePolicyId)).toBe(hex(pad32('policy:proofgate:rwa:v1')));
     expect(l.activePolicyVersion).toBe(DEFAULT_POLICY_VERSION);
@@ -208,13 +222,13 @@ describe('state transitions — the ProofGate lifecycle', () => {
     expect(hex(l.jurisdictionCommitment)).toBe(hex(jurisdictionCommitment(jurisdictionSlots(JURISDICTIONS))));
   });
 
-  it('non-admin cannot activate a policy', () => {
+  it('non-owner cannot activate a policy', () => {
     const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar() });
     const stranger = deployProofGate(DEFAULT_DOMAIN, privateState, {
-      adminPk: pureCircuits.adminKey(freshAdminSecret()),
+      owner: pureCircuits.ownerKey(freshOwnerSecret()),
     });
     const slots = jurisdictionSlots(JURISDICTIONS);
-    expectCallFails(stranger, 'caller is not the admin', () =>
+    expectCallFails(stranger, 'caller is not the owner', () =>
       stranger.call(
         'setPolicy',
         pad32('x'),
@@ -229,7 +243,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
     expect(hex(stranger.ledger().activePolicyId)).toBe(hex(new Uint8Array(32)));
   });
 
-  it('admin registers an issuer (metadata hash disclosed, identity-free)', () => {
+  it('owner registers an issuer (metadata hash disclosed, identity-free)', () => {
     const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar() });
     const pg0 = deployProofGate(DEFAULT_DOMAIN, privateState);
     const r = pg0.call('registerIssuer', privateState.issuerPubX, privateState.issuerPubY, new Uint8Array(32));
@@ -253,18 +267,18 @@ describe('state transitions — the ProofGate lifecycle', () => {
     );
   });
 
-  it('non-admin caller cannot register an issuer', () => {
+  it('non-owner caller cannot register an issuer', () => {
     const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar() });
     const stranger = deployProofGate(DEFAULT_DOMAIN, privateState, {
-      adminPk: pureCircuits.adminKey(freshAdminSecret()),
+      owner: pureCircuits.ownerKey(freshOwnerSecret()),
     });
-    expectCallFails(stranger, 'caller is not the admin', () =>
+    expectCallFails(stranger, 'caller is not the owner', () =>
       stranger.call('registerIssuer', stranger.privateState.issuerPubX, stranger.privateState.issuerPubY, new Uint8Array(32)),
     );
     expect(stranger.ledger().issuers.isEmpty()).toBe(true);
   });
 
-  it('admin can suspend and re-activate an issuer; suspended issuers cannot back credentials', () => {
+  it('owner can suspend and re-activate an issuer; suspended issuers cannot back credentials', () => {
     const id = pureCircuits.issuerId(pg.privateState.issuerPubX, pg.privateState.issuerPubY);
     pg.call('setIssuerStatus', pg.privateState.issuerPubX, pg.privateState.issuerPubY, IssuerStatus.SUSPENDED);
     expect((pg.ledger().issuers.lookup(id) as Issuer).status).toBe(IssuerStatus.SUSPENDED);
@@ -472,7 +486,7 @@ describe('state transitions — the ProofGate lifecycle', () => {
     }
   });
 
-  it('an admin-revoked permit cannot be consumed', () => {
+  it('an owner-revoked permit cannot be consumed', () => {
     registerCred(pg);
     const permitId = requestPermit(pg);
     pg.call('revokePermit', permitId);
@@ -556,22 +570,66 @@ describe('state transitions — the ProofGate lifecycle', () => {
     expectCallFails(pg, 'already registered', () => registerCred(pg));
   });
 
-  it('admin can rotate the admin key; the old admin loses authority', () => {
-    const newAdminSecret = freshAdminSecret();
-    const newAdminPk = pureCircuits.adminKey(newAdminSecret);
-    pg.call('rotateAdmin', newAdminPk);
-    expect(hex(pg.ledger().adminPk)).toBe(hex(newAdminPk));
+  it('the owner can transfer ownership to a new owner commitment', () => {
+    const newOwner = pureCircuits.ownerKey(freshOwnerSecret());
+    pg.call('transferOwnership', newOwner);
+    expect(hex(pg.ledger().owner)).toBe(hex(newOwner));
+  });
 
-    // The old wallet is no longer admin.
-    expectCallFails(pg, 'caller is not the admin', () =>
+  it('the owner can transfer ownership to an owner secret derived from a seed', () => {
+    const newOwner = pureCircuits.ownerKey(ownerSecretFromSeed('deploy-seed-b'));
+    pg.call('transferOwnership', newOwner);
+    expect(hex(pg.ledger().owner)).toBe(hex(newOwner));
+  });
+
+  it('after transfer the old owner loses authority', () => {
+    const newOwner = pureCircuits.ownerKey(freshOwnerSecret());
+    pg.call('transferOwnership', newOwner);
+    expectCallFails(pg, 'caller is not the owner', () =>
       pg.call('registerIssuer', pg.privateState.issuerPubX, pg.privateState.issuerPubY, new Uint8Array(32)),
     );
+  });
 
-    // The new admin (same credential, new admin secret) is in charge: a fresh
-    // deployment bound to the new secret can register issuers.
-    const newAdminPg = deployProofGate(DEFAULT_DOMAIN, { ...pg.privateState, adminSecret: newAdminSecret });
-    newAdminPg.call('registerIssuer', newAdminPg.privateState.issuerPubX, newAdminPg.privateState.issuerPubY, new Uint8Array(32));
-    expect(newAdminPg.ledger().issuers.size()).toBe(1n);
+  it('the new owner (holding the new owner secret) can act as owner', () => {
+    const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar() });
+    const pg0 = deployProofGate(DEFAULT_DOMAIN, privateState);
+    setDefaultPolicy(pg0);
+    const newSecret = freshOwnerSecret();
+    pg0.call('transferOwnership', pureCircuits.ownerKey(newSecret));
+    const newOwnerPg = resumeProofGate(pg0, { ...pg0.privateState, ownerSecret: newSecret });
+    newOwnerPg.call('registerIssuer', newOwnerPg.privateState.issuerPubX, newOwnerPg.privateState.issuerPubY, new Uint8Array(32));
+    expect(newOwnerPg.ledger().issuers.size()).toBe(1n);
+  });
+
+  it('the new owner can transfer ownership onward', () => {
+    const newSecret = freshOwnerSecret();
+    const newOwner = pureCircuits.ownerKey(newSecret);
+    pg.call('transferOwnership', newOwner);
+    const newOwnerPg = resumeProofGate(pg, { ...pg.privateState, ownerSecret: newSecret });
+    const nextOwner = pureCircuits.ownerKey(freshOwnerSecret());
+    newOwnerPg.call('transferOwnership', nextOwner);
+    expect(hex(newOwnerPg.ledger().owner)).toBe(hex(nextOwner));
+  });
+
+  it('a wallet that does not hold the owner secret cannot transfer ownership', () => {
+    const privateState = issueCredential({ issuerSk: ISSUER_SK, subjectSk: randScalar() });
+    const otherOwner = pureCircuits.ownerKey(freshOwnerSecret());
+    const stranger = deployProofGate(DEFAULT_DOMAIN, privateState, { owner: otherOwner });
+    const target = pureCircuits.ownerKey(freshOwnerSecret());
+    expectCallFails(stranger, 'caller is not the owner', () => stranger.call('transferOwnership', target));
+    expect(hex(stranger.ledger().owner)).toBe(hex(otherOwner));
+  });
+
+  it('transferring ownership to the current owner is rejected', () => {
+    expectCallFails(pg, 'new owner must differ', () =>
+      pg.call('transferOwnership', pureCircuits.ownerKey(pg.privateState.ownerSecret)),
+    );
+    expect(hex(pg.ledger().owner)).toBe(hex(pureCircuits.ownerKey(pg.privateState.ownerSecret)));
+  });
+
+  it('transferring ownership to the zero commitment is rejected', () => {
+    expectCallFails(pg, 'new owner must be nonzero', () => pg.call('transferOwnership', new Uint8Array(32)));
+    expect(hex(pg.ledger().owner)).toBe(hex(pureCircuits.ownerKey(pg.privateState.ownerSecret)));
   });
 });
 
@@ -695,14 +753,15 @@ describe('privacy — private inputs are never exposed', () => {
     const pg = deployProofGate(DEFAULT_DOMAIN, privateState);
     const l = pg.ledger();
     expect(hex(l.contractDomain)).toBe(hex(DEFAULT_DOMAIN));
-    expect(l.adminPk.length).toBe(32);
+    expect(l.owner.length).toBe(32);
+    expect(l.deployerId.length).toBe(32);
     expect(l.subjects.isEmpty()).toBe(true);
     expect(l.permits.isEmpty()).toBe(true);
-    expect(hex(l.adminPk)).toBe(hex(pureCircuits.adminKey(privateState.adminSecret)));
+    expect(hex(l.owner)).toBe(hex(pureCircuits.ownerKey(privateState.ownerSecret)));
   });
 
   it('compiled contract binds witnesses to the supplied private state', () => {
-    expect(() => new Contract({} as never)).toThrow(/adminSecret|subjectSk/);
+    expect(() => new Contract({} as never)).toThrow(/ownerSecret|subjectSk/);
   });
 
   it('schnorr scalar math lives in the embedded-field domain (s < r)', () => {

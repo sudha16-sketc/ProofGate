@@ -16,7 +16,8 @@ import {
   persistentHash,
 } from '@midnight-ntwrk/compact-runtime';
 import {
-  adminKey,
+  deployerId,
+  ownerKey,
   issuerId,
   keypair,
   le32,
@@ -29,7 +30,7 @@ import {
   type CredentialMessage,
 } from './schnorr.js';
 
-export { pad32, randomBytes32, le32, adminKey, issuerId, subjectKey };
+export { pad32, randomBytes32, le32, deployerId, ownerKey, issuerId, subjectKey };
 export {
   CURVE_ORDER,
   DOMAIN,
@@ -51,8 +52,8 @@ export type { CredentialMessage, JubjubKeyPair, SchnorrSignature } from './schno
  * binds the credential to this wallet.
  */
 export type ProofGatePrivateState = {
-  /** Admin master secret (proves admin in admin-only circuits). */
-  adminSecret: Uint8Array;
+  /** Owner master secret (proves ownership in owner-only circuits). */
+  ownerSecret: Uint8Array;
   /** Subject secret key scalar (LE field element). */
   subjectSk: Uint8Array;
   /** Subject public key X coordinate (32-byte LE field element). */
@@ -160,7 +161,7 @@ export function demoPrivateState(seed: string, opts: Partial<DemoCredentialArgs>
     issuerSk: demoIssuerSk(),
     subjectSk: scalarFromBytes(deriveSecret(seed, 'subject-sk')),
     jurisdiction: 'US',
-    adminSecret: deriveSecret(seed, 'admin-sk'),
+    ownerSecret: ownerSecretFromSeed(seed),
     ...opts,
   });
 }
@@ -177,8 +178,8 @@ export interface DemoCredentialArgs {
   credentialVersion?: bigint;
   policyVersion?: bigint;
   credentialId?: Uint8Array;
-  /** Admin master secret. Defaults to random; pass a seed-derived value for the deployer/admin wallet. */
-  adminSecret?: Uint8Array;
+  /** Owner master secret. Defaults to random; pass the seed-derived value for the deployer/owner wallet. */
+  ownerSecret?: Uint8Array;
 }
 
 /**
@@ -198,7 +199,7 @@ export function issueCredential(args: DemoCredentialArgs): ProofGatePrivateState
     credentialVersion = DEFAULT_CREDENTIAL_VERSION,
     policyVersion = DEFAULT_POLICY_VERSION,
     credentialId = randomBytes32(),
-    adminSecret = randomBytes32(),
+    ownerSecret = randomBytes32(),
   } = args;
 
   const issuerPub = publicKey(issuerSk);
@@ -230,7 +231,7 @@ export function issueCredential(args: DemoCredentialArgs): ProofGatePrivateState
   const sig = signCredential(issuerSk, message);
 
   return {
-    adminSecret,
+    ownerSecret,
     subjectSk: le32(subjectSk),
     subjectPubX: subjectPub.pubX,
     subjectPubY: subjectPub.pubY,
@@ -260,13 +261,14 @@ export function issueCredential(args: DemoCredentialArgs): ProofGatePrivateState
 
 /**
  * Fresh private state with NO credential and a random subject secret key.
- * The admin secret is random (the deployer becomes the admin via its
- * commitment in the constructor).
+ * The owner secret is random (a fresh deployment binds its commitment as the
+ * initial owner, so the deployer must seed it deterministically afterwards —
+ * see `ownerSecretFromSeed`).
  */
 export function freshPrivateState(): ProofGatePrivateState {
   const subject = keypair();
   return {
-    adminSecret: randomBytes32(),
+    ownerSecret: randomBytes32(),
     subjectSk: le32(subject.sk),
     subjectPubX: subject.pubX,
     subjectPubY: subject.pubY,
@@ -295,18 +297,26 @@ export function freshPrivateState(): ProofGatePrivateState {
 }
 
 /**
- * The fresh admin secret for deploying a new contract. The corresponding
- * commitment (adminKey(adminSecret)) is the `adminPk` passed to the
- * constructor; the secret itself stays in the wallet's private state.
+ * The owner secret for deploying a new contract: derived deterministically
+ * from the deploy wallet seed. The corresponding commitment
+ * (ownerKey(ownerSecret)) is the `owner` passed to the constructor; the secret
+ * itself stays in the wallet's private state and is re-derived by the CLI for
+ * every owner action — so the deployer *is* the initial owner and no random
+ * secret is ever lost.
  */
-export function freshAdminSecret(): Uint8Array {
+export function ownerSecretFromSeed(seed: string): Uint8Array {
+  return deriveSecret(seed, 'owner-sk');
+}
+
+/** A fresh random owner secret (e.g. the secret behind a new owner commitment). */
+export function freshOwnerSecret(): Uint8Array {
   return randomBytes32();
 }
 
 /** Build the witness object the compiled contract expects from a private state. */
 export function createWitnesses(ps: ProofGatePrivateState): Witnesses<ProofGatePrivateState> {
   return {
-    adminSecret: (ctx) => [ctx.privateState, ps.adminSecret],
+    ownerSecret: (ctx) => [ctx.privateState, ps.ownerSecret],
     subjectSk: (ctx) => [ctx.privateState, ps.subjectSk],
     subjectPkX: (ctx) => [ctx.privateState, ps.subjectPubX],
     subjectPkY: (ctx) => [ctx.privateState, ps.subjectPubY],
