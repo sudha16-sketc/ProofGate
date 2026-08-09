@@ -104,11 +104,16 @@ proofgate/
 ## Prerequisites
 
 1. **Node.js ≥ 22** (`node --version`)
-2. **Docker** with Docker Compose (`docker --version`), for the local devnet and
-   the proof server
-3. **Lace wallet extension** (Web UI only), on the
+2. **Lace wallet extension** (Web UI only), on the
    [Chrome Store](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk)
    or [Edge Store](https://microsoftedge.microsoft.com/addons/detail/lace/efeiemlfnahiidnjglmehaihacglceia)
+3. **Docker with Docker Compose** (`docker --version`) — **OPTIONAL**. Only needed
+   for the local devnet (`--network undeployed`) and for running the CLI's proof
+   server. The Web UI proves **in-wallet** and does **not** need Docker.
+
+The app is **Preview-first**: the frontend defaults to the official Midnight
+Preview network and needs no local node, indexer, or proof server for normal
+use.
 
 ---
 
@@ -124,7 +129,37 @@ prover/verifier keys (`.prover`/`.verifier`) under `managed/proofgate/`.
 
 ---
 
-## Run against the local devnet
+## Run against Midnight Preview (default; Docker-independent)
+
+The frontend is **Preview-first** and works with **no Docker**:
+
+```bash
+npm install
+npm run compile
+cp frontend/.env.example frontend/.env.local   # already points at Preview + the deployed contract
+npm run frontend:dev                            # Vite dev server → http://127.0.0.1:8080
+```
+
+Connect your Lace wallet (set to **Midnight Preview**), and the dApp connects to
+the already-deployed ProofGate contract, activates the demo policy, registers
+credentials, and runs every transaction through the **Preview indexer/node** with
+**in-wallet proof generation**. No local node, indexer, or proof server is used.
+
+The CLI drives the same Preview contract but needs a **locally-run official proof
+server** (proof generation cannot be done by a hosted Midnight endpoint):
+
+```bash
+docker compose up -d proof-server             # optional — CLI-only
+npm run cli -- info -- --network preview
+npm run cli -- set-policy 706f6c6963793a70726f6f66676174653a64656d6f3a7631 -- --network preview
+npm run cli -- demo -- --network preview       # full happy-path walkthrough
+```
+
+The `demo` walkthrough is the full happy path — policy activation, issuer
+registration, **real `registerCredential` ZK proving**, compliance attestation,
+and one-time permit request + consume — then prints the final on-chain state.
+
+### Local devnet (optional, Docker)
 
 ```bash
 docker compose up -d          # starts node (:9944), indexer (:8088), proof server (:6300)
@@ -180,20 +215,25 @@ prints the final on-chain state.
 
 ---
 
-## Run against a public testnet (preview / preprod)
+## Run against a public testnet (preview / preprod) — CLI
+
+The CLI targets the public network but proves via a **locally-run official proof
+server** (there is no Midnight-hosted public proof server):
 
 ```bash
-docker compose up -d proof-server          # the proof server is always local
+docker compose up -d proof-server          # optional, CLI-only
 npm run deploy -- --network preview        # auto-creates a wallet if none exists
 ```
 
-1. Start the local proof server (Docker).
+1. (Optional) Start the local proof server (Docker).
 2. Run `npm run deploy -- --network preview` — on first run a wallet is created
    and its seed/mnemonic printed; save it.
 3. Fund the wallet with tNIGHT and tDUST from the
    [Preview Faucet](https://midnight-tmnight-preview.nethermind.dev/) or
    [Preprod Faucet](https://midnight-tmnight-preprod.nethermind.dev/).
 4. Deploy again once funded, then use the CLI with `-- --network preview`.
+
+The browser dApp never needs this proof server — it proves in-wallet.
 
 Reuse a wallet by setting `MIDNIGHT_WALLET_SEED` or `MIDNIGHT_WALLET_MNEMONIC`.
 
@@ -206,8 +246,11 @@ npm run frontend:dev     # Vite dev server → http://127.0.0.1:8080
 npm run frontend:build   # production build
 ```
 
-The UI proves **in-wallet** (Lace), so no proof server is needed in the browser.
-Set `VITE_CONTRACT_ADDRESS` (and optionally `VITE_INDEXER_URL`) before running.
+The UI proves **in-wallet** (Lace), so no proof server is needed in the browser,
+and it is **Preview-first** — the official Preview indexer and the already-deployed
+contract are the defaults (`frontend/.env.example`). Override with
+`VITE_NETWORK_ID`, `VITE_CONTRACT_ADDRESS`, `VITE_INDEXER_URL`, and optionally
+`VITE_PROOF_SERVER_URL` (to prove via a local proof server instead of in-wallet).
 `frontend/public/keys` and `frontend/public/zkir` are kept in sync with
 `managed/proofgate` so the wallet can fetch the ZK config.
 
@@ -267,12 +310,12 @@ browser bundle).
 
 | Symptom | Cause / fix |
 |---|---|
-| `1010: Invalid Transaction: Custom error: 170` (`InvalidDustSpendProof`) on deploy | The wallet synced its DUST state from a **stale indexer** (e.g. an old devnet still holding port `:8088`) that serves a different chain than the node. Stop/remove the conflicting container and make sure the compose indexer owns `:8088` and is caught up to the node tip; wipe `midnight-level-db` + `.midnight-wallet-state/<network>` and redeploy. |
+| `1010: Invalid Transaction: Custom error: 170` (`InvalidDustSpendProof`) | The node rejected the transaction's **DUST fee proof**, not the contract logic. The wallet built the proof from **stale DUST state** (not synced to the chain tip) or a **corrupt/partially-downloaded ZK proving-key cache**. Fix (wallet-side): let the wallet finish syncing to the tip, then retry the same action — the app rebuilds the transaction and a fresh DUST proof each click. If it persists, lock/unlock or re-import the wallet (or clear its cache) to force a re-sync and key re-download. On the local devnet, an old indexer still holding port `:8088` serving a different chain is the classic cause: stop/remove it and wipe `midnight-level-db` + `.midnight-wallet-state/<network>` and redeploy. |
 | `expected instance of StateValue` on the first `callTx` | Two copies of `@midnight-ntwrk/onchain-runtime-v3` in the dependency tree. `npm install` after the `overrides` fix, or delete `node_modules`/`package-lock.json` and reinstall. |
 | `caller is not the admin` from `setPolicy` | The CLI's `adminSecret` does not match the deployed contract's `adminPk`. The demo derives the admin secret from the wallet seed (`deriveSecret(seed, 'admin-sk')`) — deploy and CLI must use the **same seed**. |
 | `ContractTypeError: ... have mismatched verifier keys` | The on-chain contract was deployed from an older compilation. Redeploy with the current `managed/proofgate` artifacts. |
 | `Unknown command: demo` | CLI dispatcher missing the `demo` case (fixed). Run `npm run cli -- help`. |
-| Proof generation required | The CLI always proves via the local proof server; the browser proves in-wallet. `docker compose up -d` provides it locally. |
+| Proof generation required | The **browser proves in-wallet** and needs no proof server or Docker. The **CLI** proves via a locally-run official proof server (`docker compose up -d proof-server`). |
 
 ---
 

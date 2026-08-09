@@ -58,11 +58,12 @@ This document covers the **architecture**, **workflow**, **user flow**, and
 │                                                                            │
 │  cli.ts ──► deploy.ts / setup.ts ──► wallet.ts (WalletFacade SDK)          │
 │  proofgate.ts + schnorr.ts (private state & crypto) ──► midnight-js        │
-│      └─► httpClientProofProvider ──► PROOF SERVER (Docker, :6300)          │
-│      └─► indexerPublicDataProvider ──► Indexer (:8088)                     │
+│      └─► httpClientProofProvider ──► PROOF SERVER (local Docker, :6300)    │
+│      └─► indexerPublicDataProvider ──► Indexer (Preview :443 / devnet :8088)│
 │      └─► levelPrivateStateProvider ──► on-disk encrypted private state      │
 │                                                                            │
-│  Local devnet (Docker):  node (:9944)  ·  indexer (:8088)  ·  proof (:6300)│
+│  Preview (CLI):  rpc.preview.midnight.network · indexer.preview.midnight.network · local proof server (:6300)
+│  Local devnet:   node (:9944)  ·  indexer (:8088)  ·  proof (:6300)        │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -139,16 +140,18 @@ without ever disclosing it.
 
 ```mermaid
 flowchart TD
-    A[Install Node 22+, Docker] --> B[npm install]
+    A[Install Node 22+] --> B[npm install]
     B --> C[npm run compile]
-    C --> D{Network target}
-    D -->|undeployed local devnet| E[docker compose up -d]
-    E --> F[npm run deploy -- --network undeployed]
-    D -->|preview / preprod| G[proof server via Docker]
+    C --> D{Client}
+    D -->|Web UI - Preview default| L1[connect Lace wallet on Midnight Preview - no Docker]
+    L1 --> L2[recognizes already-deployed contract - no deploy needed]
+    L2 --> L3[activate policy / register / permit in-wallet]
+    D -->|CLI - preview / preprod| G[local proof server via Docker - optional, CLI-only]
     G --> H[wallet auto-created / reused]
     H --> I[fund via faucet: tNIGHT + tDUST]
-    F --> J[contract deployed, address saved to .midnight-state.json]
-    I --> J
+    I --> J[contract deployed, address saved to .midnight-state.json]
+    D -->|CLI - undeployed local devnet| E[docker compose up -d]
+    E --> F[npm run deploy -- --network undeployed]
     J --> K[CLI: npm run cli]
     J --> L[Web UI: point VITE_CONTRACT_ADDRESS at address]
 ```
@@ -160,6 +163,8 @@ flowchart TD
    waits for sync, ensures tNIGHT + tDUST, waits for the proof server, then calls
    `deployContract(providers, { args: [contractDomain, adminPk] })`. The
    canonical domain is `DEFAULT_DOMAIN = pad32("ProofGate:canonical:test:v1")`.
+   The **Web UI is Preview-first and needs no deploy** — it discovers the
+   already-deployed Preview contract at `frontend/.env.example`.
 3. The constructor stores `contractDomain` and the admin commitment (`adminPk`)
    on-chain. **All demo credentials are bound to `DEFAULT_DOMAIN`**, so a fresh
    page session or CLI demo works against any standard deployment.
@@ -257,10 +262,11 @@ npm run cli -- consume-permit <feature> <idHex>         # user: spend the permit
 npm run cli -- demo                                     # full happy-path walkthrough
 ```
 
-The CLI mirrors the UI flow but proves via a **remote proof server** (`:6300`)
-instead of in-wallet, and keeps private state in an **encrypted on-disk LevelDB**
-(`levelPrivateStateProvider`) rather than memory. The demo flow registers the
-**same** demo issuer key the browser uses (sk = 42), so CLI- and browser-deployed
+The CLI mirrors the UI flow but proves via a **locally-run official proof server**
+(`:6300`, Docker — CLI-only, since no hosted public proof server exists), while the
+browser proves **in-wallet**. The CLI keeps private state in an **encrypted on-disk
+LevelDB** (`levelPrivateStateProvider`) rather than memory. The demo flow registers
+the **same** demo issuer key the browser uses (sk = 42), so CLI- and browser-deployed
 contracts interoperate.
 
 ---

@@ -19,6 +19,7 @@ import {
   type TransactionId,
 } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { createProofProvider } from '@midnight-ntwrk/midnight-js-types';
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
@@ -28,6 +29,8 @@ import type { PrivateStateId } from '@midnight-ntwrk/midnight-js-types';
 
 import { inMemoryPrivateStateProvider } from './in-memory-private-state-provider';
 import type { ProofGatePrivateState } from './proofgate';
+import { NETWORK, PROOF_SERVER_URL } from './env';
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
 export type ProofGateProviders = {
   readonly privateStateProvider: ReturnType<
@@ -61,9 +64,31 @@ export async function buildProofGateProviders(
   const config = await connectedApi.getConfiguration();
   const shielded = await connectedApi.getShieldedAddresses();
 
+  // Guard: the wallet's network must match the network this build targets, and
+  // the global network ID must already be set (main.tsx calls setNetworkId
+  // before any provider exists). This guarantees every transaction path uses
+  // exactly one network — Preview by default.
+  const configuredNetworkId = getNetworkId();
+  if (config.networkId !== NETWORK) {
+    throw new Error(
+      `Network mismatch: your wallet is on "${config.networkId}" but this dApp requires "${NETWORK}". ` +
+        'Switch the wallet to Midnight Preview (or set VITE_NETWORK_ID to match the wallet) and reconnect.',
+    );
+  }
+  if (configuredNetworkId !== NETWORK) {
+    throw new Error(
+      `Network ID is misconfigured: global "${configuredNetworkId}" vs dApp "${NETWORK}". Reload the page.`,
+    );
+  }
+
   const zkConfigProvider = new FetchZkConfigProvider(zkArtifactsBaseUrl, fetch.bind(window));
-  const provingProvider = await connectedApi.getProvingProvider(zkConfigProvider);
-  const proofProvider = createProofProvider(provingProvider);
+
+  // Proving is in-wallet by default (Preview-first, no proof server, no Docker).
+  // When VITE_PROOF_SERVER_URL is set explicitly, prove via that endpoint
+  // (e.g. a locally-run official `midnightntwrk/proof-server` instance).
+  const proofProvider = PROOF_SERVER_URL
+    ? httpClientProofProvider(PROOF_SERVER_URL, zkConfigProvider)
+    : createProofProvider(await connectedApi.getProvingProvider(zkConfigProvider));
 
   return {
     privateStateProvider: inMemoryPrivateStateProvider<PrivateStateId, ProofGatePrivateState>(),

@@ -1,27 +1,113 @@
-// Environment configuration, loaded once at startup.
+// Environment configuration, loaded once at startup. This is the SINGLE source
+// of truth for the frontend's Midnight network wiring.
 //
 // The wallet's own service configuration (via `getConfiguration()`) is
-// preferred for every on-chain action; the values below are the network-level
-// defaults for the read-only ledger view and the wallet connection hint.
+// preferred for every on-chain action; the presets below are the network-level
+// defaults used for the read-only ledger view and the wallet connection hint.
+//
+// DEFAULT: the app is PREVIEW-FIRST. `preview` is used whenever no network env
+// var is set, so the app never silently falls back to a local devnet. The
+// `undeployed` preset (local Docker devnet) is reachable ONLY by explicitly
+// setting VITE_NETWORK or VITE_NETWORK_ID — it is never a default.
+//
 // No secrets (mnemonics, private keys, admin secrets) are ever read through
 // VITE_* variables — these are all public, non-sensitive network settings.
 
-export type ProofGateNetwork = 'undeployed' | 'preview' | 'preprod';
+export type ProofGateNetwork = 'preview' | 'preprod' | 'undeployed';
 
-export const NETWORK: ProofGateNetwork = (import.meta.env.VITE_NETWORK ?? 'preview').trim() as ProofGateNetwork;
-export const CONTRACT_ADDRESS = (import.meta.env.VITE_CONTRACT_ADDRESS ?? '').trim();
+/** Networks the app is allowed to target. Anything else fails loudly. */
+export const SUPPORTED_NETWORKS: readonly ProofGateNetwork[] = ['preview', 'preprod', 'undeployed'];
 
-/** Default indexer URL per network (overridable via VITE_INDEXER_URL). */
-export const DEFAULT_INDEXER_URLS: Record<ProofGateNetwork, string> = {
-  undeployed: 'http://127.0.0.1:8088/api/v4/graphql',
-  preview: 'https://indexer.preview.midnight.network/api/v4/graphql',
-  preprod: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+/**
+ * Per-network service endpoints.
+ *
+ *   indexer / indexerWs  — official Midnight indexer (or the local devnet one
+ *                          for the explicitly selected `undeployed` preset).
+ *   node                 — RPC/WS endpoint used by the CLI wallet sync; the
+ *                          browser wallet brings its own node via Lace.
+ *   proofServer          — proof endpoint. Empty for the browser path: proofs
+ *                          are generated IN-WALLET by the connected Lace
+ *                          wallet, so no server is required for normal usage.
+ *                          Set VITE_PROOF_SERVER_URL to point the CLI's
+ *                          `httpClientProofProvider` at a locally-run official
+ *                          `midnightntwrk/proof-server` instance instead.
+ *   faucet               — funding endpoint for public networks.
+ */
+export const NETWORK_PRESETS: Record<ProofGateNetwork, {
+  readonly indexer: string;
+  readonly indexerWs: string;
+  readonly node: string;
+  readonly proofServer: string;
+  readonly faucet: string | null;
+}> = {
+  preview: {
+    indexer: 'https://indexer.preview.midnight.network/api/v4/graphql',
+    indexerWs: 'wss://indexer.preview.midnight.network/api/v4/graphql/ws',
+    node: 'https://rpc.preview.midnight.network',
+    proofServer: '',
+    faucet: 'https://faucet.preview.midnight.network',
+  },
+  preprod: {
+    indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+    indexerWs: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+    node: 'https://rpc.preprod.midnight.network',
+    proofServer: '',
+    faucet: 'https://faucet.preprod.midnight.network',
+  },
+  // Local devnet — OPTIONAL and only reachable by explicit opt-in. Requires the
+  // `docker compose up -d` stack (node :9944, indexer :8088, proof-server :6300).
+  // Never used as a default; the app is Preview-first.
+  undeployed: {
+    indexer: 'http://127.0.0.1:8088/api/v4/graphql',
+    indexerWs: 'ws://127.0.0.1:8088/api/v4/graphql/ws',
+    node: 'ws://127.0.0.1:9944',
+    proofServer: 'http://127.0.0.1:6300',
+    faucet: null,
+  },
 };
 
-export const INDEXER_URL =
-  import.meta.env.VITE_INDEXER_URL?.trim() || (DEFAULT_INDEXER_URLS[NETWORK] ?? DEFAULT_INDEXER_URLS.preview);
+function resolveNetworkValue(): ProofGateNetwork {
+  // VITE_NETWORK_ID is the documented canonical name; VITE_NETWORK is kept as
+  // the legacy alias established by this project. Preview wins when unset.
+  const raw = (import.meta.env.VITE_NETWORK_ID ?? import.meta.env.VITE_NETWORK ?? 'preview').trim();
+  if (!SUPPORTED_NETWORKS.includes(raw as ProofGateNetwork)) {
+    throw new Error(
+      `Unsupported network "${raw}". Supported: ${SUPPORTED_NETWORKS.join(', ')}. ` +
+        'The app is Preview-first — unset VITE_NETWORK/VITE_NETWORK_ID to use Midnight Preview.',
+    );
+  }
+  return raw as ProofGateNetwork;
+}
+
+export const NETWORK: ProofGateNetwork = resolveNetworkValue();
+
+export const CONTRACT_ADDRESS = (import.meta.env.VITE_CONTRACT_ADDRESS ?? '').trim();
+
+const PRESET = NETWORK_PRESETS[NETWORK];
+
+/**
+ * Indexer used by the read-only public ledger view. Overridable via
+ * VITE_INDEXER_URL; defaults to the official indexer for the selected network.
+ * Never silently falls back to a local endpoint.
+ */
+export const INDEXER_URL = import.meta.env.VITE_INDEXER_URL?.trim() || PRESET.indexer;
+
+/**
+ * Proof-server endpoint, when one is explicitly configured.
+ *
+ * Empty by default: the browser path proves IN-WALLET (no proof server). Set
+ * VITE_PROOF_SERVER_URL to a locally-run official `midnightntwrk/proof-server`
+ * instance (e.g. `http://127.0.0.1:6300`) or any compatible endpoint to prove
+ * via `httpClientProofProvider` instead.
+ */
+export const PROOF_SERVER_URL = import.meta.env.VITE_PROOF_SERVER_URL?.trim() || PRESET.proofServer;
 
 /** Derive the indexer's GraphQL WebSocket URL from its HTTP URL. */
 export function indexerWsUrl(httpUrl: string): string {
   return httpUrl.replace(/^http/, 'ws').replace(/\/graphql$/, '/graphql/ws');
 }
+
+export const INDEXER_WS_URL = import.meta.env.VITE_INDEXER_WS_URL?.trim() || PRESET.indexerWs;
+
+/** Convenience export: does the selected network require a local devnet? */
+export const IS_LOCAL_DEVNET = NETWORK === 'undeployed';

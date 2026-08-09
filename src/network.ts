@@ -58,6 +58,12 @@ export const NETWORK_CONFIGS: Record<NetworkId, NetworkConfig> = {
     faucet: null,
     composeServices: ['node', 'indexer', 'proof-server'],
   },
+  // PREVIEW is the default target. The indexer and node are the official
+  // Midnight Preview services. `proofServer` is used ONLY by the CLI/deploy
+  // scripts, which prove via a locally-run official `midnightntwrk/proof-server`
+  // image (override with MIDNIGHT_PROOF_SERVER_URL). The browser dApp never
+  // contacts this endpoint — proofs are generated in-wallet by Lace, so the
+  // frontend works with no local proof server and no Docker.
   preview: {
     networkId: 'preview',
     indexer:   'https://indexer.preview.midnight.network/api/v4/graphql',
@@ -197,7 +203,10 @@ export function resolveNetwork(opts: ResolveOptions = {}): ResolveResult {
       network = state.activeNetwork;
       source = 'state';
     } else {
-      network = 'undeployed';
+      // PREVIEW-FIRST: with no persisted state, target the public Midnight
+      // Preview network rather than a local devnet. Use `--network undeployed`
+      // explicitly for the local Docker devnet.
+      network = 'preview';
       source = 'default';
     }
   }

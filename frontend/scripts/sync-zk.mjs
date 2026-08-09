@@ -6,7 +6,7 @@
 //
 // Run automatically by `npm run dev` and `npm run build`.
 
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,10 @@ if (!existsSync(keysDir) || !existsSync(zkirDir)) {
   process.exit(1);
 }
 
+// Wipe the target dirs first so circuits dropped from `managed/` (e.g. the old
+// `checkCredential`) never linger in `public/` and get served to the browser.
+rmSync(publicKeysDir, { recursive: true, force: true });
+rmSync(publicZkirDir, { recursive: true, force: true });
 mkdirSync(publicKeysDir, { recursive: true });
 mkdirSync(publicZkirDir, { recursive: true });
 cpSync(keysDir, publicKeysDir, { recursive: true });
