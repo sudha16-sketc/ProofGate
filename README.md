@@ -79,6 +79,12 @@ verified **in-circuit**. The signed credential is an 18-slot, domain-separated
 message covering: issuer identity, subject binding, credential id, age,
 jurisdiction, KYC level, issue/expiry time, credential + policy versions and
 the ProofGate instance domain (cross-contract replay protection).
+## Demo Video 
+https://github.com/user-attachments/assets/778dc963-53e5-4c0f-82d2-6fdde7390bf0
+
+
+
+
 
 ## Architecture
 
