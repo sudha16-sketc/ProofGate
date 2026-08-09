@@ -85,7 +85,7 @@ export function PermitConsumeModal({ permit, onClose }: { permit: PermitRow | nu
           </Button>
           <Button
             variant="success"
-            disabled={remaining <= 0}
+            disabled={remaining <= 0 || permit.status !== 0}
             onClick={run}
             icon={<IconZap size={14} />}
             autoFocus

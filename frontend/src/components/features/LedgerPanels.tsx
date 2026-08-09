@@ -125,10 +125,21 @@ export function LedgerPanels() {
           columns={[
             { key: 'id', label: 'Permit id', render: (r) => <Id value={r.id} /> },
             { key: 'feature', label: 'Feature', render: (r) => <span className="mono">{r.feature}</span> },
-            { key: 'status', label: 'Status', render: (r) => <StatusBadge tone={statusTone(r.status)}>{PERMIT_STATUS[r.status] ?? r.status}</StatusBadge> },
+            {
+              key: 'status',
+              label: 'Status',
+              render: (r) => {
+                // Determine effective status considering expiry
+                const now = Date.now();
+                const timeValid = Number(r.expiresAt) * 1000 > now;
+                const label = r.status === 1 ? 'CONSUMED' : r.status === 2 ? 'REVOKED' : timeValid ? 'VALID' : 'EXPIRED';
+                const tone = label === 'VALID' ? 'ok' : label === 'EXPIRED' ? 'warn' : label === 'REVOKED' ? 'err' : 'dim';
+                return <StatusBadge tone={tone}>{label}</StatusBadge>;
+              },
+            },
             { key: 'holder', label: 'Holder', render: (r) => <Id value={r.holder} /> },
             { key: 'policy', label: 'Policy', render: (r) => <Id value={r.policyId} /> },
-            { key: 'issued', label: 'Issued', render: (r) => formatTimestamp(r.issuedAt) },
+            { key: 'issued', label: 'Issued', render: (r) => <span className="mono">seq {r.issuedAt.toString()}</span> },
             { key: 'expires', label: 'Expires', render: (r) => formatTimestamp(r.expiresAt) },
           ]}
           rows={ledger.permits.map((p) => ({ ...p, key: p.id }))}

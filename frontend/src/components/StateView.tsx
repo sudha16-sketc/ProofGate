@@ -91,6 +91,11 @@ export function StateView({ address }: { address: string | null }) {
       if (!provider) return;
       try {
         const state = await provider.queryContractState(address as never);
+        // DEBUG: surface raw indexer response to the browser console so we can inspect
+        // whether the indexer includes on-chain block timestamps or other metadata.
+        // Remove this log once we've confirmed the shape.
+        // eslint-disable-next-line no-console
+        console.debug('rawIndexerState', state);
         if (cancelled) return;
         if (!state) {
           setView(null);

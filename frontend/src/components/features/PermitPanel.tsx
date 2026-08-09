@@ -36,6 +36,8 @@ export function PermitPanel() {
 
   const permits = meta?.myPermits ?? [];
 
+  const validCount = permits.filter((p) => p.status === 0 && msUntil(p.expiresAt) > 0).length;
+
   return (
     <div className="stack" style={{ gap: 'var(--sp-4)' }}>
       <div className="row-between">
@@ -47,7 +49,7 @@ export function PermitPanel() {
           </p>
         </div>
         <span className="badge badge-proof">
-          {permits.filter((p) => p.status === 0).length} valid
+          {validCount} valid
         </span>
       </div>
 
@@ -79,10 +81,24 @@ function PermitCard({
   busy: boolean;
   onUse: () => void;
 }) {
-  const remaining = useCountdown(msUntil(permit.expiresAt));
-  const label = PERMIT_STATUS[permit.status] ?? 'UNKNOWN';
-  const valid = permit.status === 0;
-  const expiring = valid && remaining < 5 * 60 * 1000;
+const remaining = useCountdown(msUntil(permit.expiresAt));
+
+const statusValid = permit.status === 0;
+const consumed = permit.status === 1;
+const revoked = permit.status === 2;
+
+const timeValid = remaining > 0;
+const valid = statusValid && timeValid;
+
+const label = revoked
+  ? 'REVOKED'
+  : consumed
+    ? 'CONSUMED'
+    : valid
+      ? 'VALID'
+      : 'EXPIRED';
+
+const expiring = valid && remaining < 5 * 60 * 1000;
 
   return (
     <Reveal>
@@ -92,34 +108,54 @@ function PermitCard({
             <div className="permit-title">{featureLabel(permit.feature)}</div>
             <div className="permit-sub">Permit {shortId(permit.id, 10)}</div>
           </div>
-          <StatusBadge tone={valid ? 'ok' : permit.status === 2 ? 'err' : 'dim'}>{label}</StatusBadge>
+          <StatusBadge
+  tone={
+    valid
+      ? 'ok'
+      : revoked
+        ? 'err'
+        : consumed
+          ? 'dim'
+          : 'warn'
+  }
+>
+  {label}
+</StatusBadge>
         </div>
 
         <div className="permit-meta">
           <PermitMeta k="Policy" v={shortId(permit.policyId, 8)} />
-          <PermitMeta k="Issued" v={formatTimestamp(permit.issuedAt)} />
+          <PermitMeta k="Issued" v={`seq ${permit.issuedAt.toString()}`} />
           <PermitMeta k="Expires" v={formatTimestamp(permit.expiresAt)} />
           <PermitMeta k="Credential" v={shortId(permit.credId, 8)} />
         </div>
 
-        {valid && (
-          <div className="row-between">
-            <span className={`permit-countdown ${expiring ? 'expiring' : ''}`.trim()}>
-              <IconClock size={14} />
-              {remaining > 0 ? `Valid for ${formatCountdown(remaining)}` : 'Expired'}
-            </span>
-            <Button
-              variant="success"
-              size="sm"
-              disabled={busy || remaining <= 0}
-              loading={busy}
-              onClick={onUse}
-              icon={<IconZap size={14} />}
-            >
-              Use permit
-            </Button>
-          </div>
-        )}
+        {valid ? (
+  <div className="row-between">
+    <span className={`permit-countdown ${expiring ? 'expiring' : ''}`.trim()}>
+      <IconClock size={14} />
+      Valid for {formatCountdown(remaining)}
+    </span>
+
+    <Button
+      variant="success"
+      size="sm"
+      disabled={busy || remaining <= 0 || consumed || revoked}
+      loading={busy}
+      onClick={onUse}
+      icon={<IconZap size={14} />}
+    >
+      Use permit
+    </Button>
+  </div>
+) : (
+  <div className="row-between">
+    <span className="permit-countdown">
+      <IconClock size={14} />
+      {revoked ? 'Revoked' : consumed ? 'Already consumed' : 'Expired'}
+    </span>
+  </div>
+)}
 
         <p className="caption" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <IconLock size={12} />

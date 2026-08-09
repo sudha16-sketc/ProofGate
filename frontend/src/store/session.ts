@@ -488,7 +488,16 @@ export async function requestPermit(feature: string): Promise<TxResult | null> {
     const view = await fetchLedgerView(p, addr);
     const pseudonym = deriveMeta(view, privateState)?.myPseudonym ?? null;
     if (!pseudonym) throw new Error('Credential not registered — register it first.');
-    const expiresAt = BigInt(Math.floor(Date.now() / 1000)) + 3600n;
+
+    // Compute expiresAt as exactly 5 years from now (calendar-aware), using
+    // the client's current clock as the best approximation of ledger time.
+    // The contract requires `expiresAt` to be in the future; using now + 5y
+    // ensures that assertion passes. (The contract stores `issuedAt = seq.read()`.)
+    const nowMs = Date.now();
+    const dt = new Date(nowMs);
+    dt.setFullYear(dt.getFullYear() + 5);
+    const expiresAt = BigInt(Math.floor(dt.getTime() / 1000));
+
     const tx = await handle.callTx.requestPermit(pad32(feature), expiresAt, le32(expiresAt));
     const id = await findPermitId(p, addr, toBytes32(pseudonym), pad32(feature));
     return { txId: tx.public.txId, permitId: id ?? undefined, extra: id ? undefined : 'awaiting indexer…' };
