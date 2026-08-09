@@ -211,7 +211,8 @@ on a trusted oracle to whisper "verified". ProofGate:
   issuer registries; issuers are a trusted third party for the *credential
   claims* (as in the real world), but ProofGate never trusts them to evaluate
   policy.
-
+## CI/CD badge or workflow file with passing runs
+[![ProofGate CI](https://github.com/sudha16-sketc/ProofGate/actions/workflows/main.yml/badge.svg)](https://github.com/sudha16-ketc/ProofGate/actions/workflows/main.yml)
 ## Technology Stack
 
 - **Language**: [Compact](https://docs.midnight.network/compact/writing)
