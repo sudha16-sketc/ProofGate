@@ -1,20 +1,34 @@
 /* =============================================================================
-   PROOFGATE � AURUM-STYLE CINEMATIC HERO
+   PROOFGATE — CINEMATIC HERO
    Scroll-driven frame sequence + editorial typography
-   ========================================================================== */
+   ============================================================================= */
 
 .cinematic-hero {
+  --hero-bg: #06080f;
+  --hero-ink: #f3f5f7;
+  --hero-ink-dim: rgba(235, 240, 248, 0.72);
+  --hero-ink-faint: rgba(255, 255, 255, 0.48);
+  --hero-accent-a: #8fa7ff;
+  --hero-accent-b: #62e6d4;
+  --hero-line: rgba(151, 227, 217, 0.32);
+  --hero-shadow: rgba(1, 5, 10, 0.38);
+
   position: relative;
   height: 100vh;
   overflow: hidden;
-  background: #06080f;
+  background: var(--hero-bg);
   isolation: isolate;
 }
 
+/* The cinematic landing intentionally has no sections after the hero. Keep it
+   out of flex layout so ScrollTrigger's pin spacer supplies the scroll runway. */
+.pg-landing {
+  display: block;
+}
 
 /* =============================================================================
    FRAME SEQUENCE
-   ========================================================================== */
+   ============================================================================= */
 
 .hero-sequence {
   position: absolute;
@@ -30,98 +44,78 @@
   height: 100%;
   display: block;
   object-fit: cover;
-  background: #06080f;
+  background: var(--hero-bg);
 }
-
 
 /* =============================================================================
    LOADER
-   ========================================================================== */
+   ============================================================================= */
 
 .hero-sequence__loader {
   position: absolute;
   inset: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #06080f;
-  z-index: 10;
+  background: var(--hero-bg);
 }
 
 .hero-sequence__loader-inner {
   width: min(280px, 70vw);
-
   display: flex;
   flex-direction: column;
   align-items: center;
-
   gap: 14px;
 }
 
 .hero-sequence__loader-label {
   font-size: 10px;
   font-weight: 600;
-
   letter-spacing: 0.22em;
   text-transform: uppercase;
-
   color: rgba(255, 255, 255, 0.55);
 }
 
 .hero-sequence__loader-bar {
   width: 100%;
   height: 2px;
-
-  background: rgba(255, 255, 255, 0.15);
-
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .hero-sequence__loader-fill {
   height: 100%;
-
-  background: linear-gradient(90deg,
-      #8fa7ff,
-      #62e6d4);
-
+  background: linear-gradient(90deg, var(--hero-accent-a), var(--hero-accent-b));
   transition: width 0.25s ease;
 }
 
 .hero-sequence__loader-pct {
   font-family: var(--font-mono);
   font-size: 10px;
-
   color: rgba(255, 255, 255, 0.45);
 }
 
-
 /* =============================================================================
-   ERROR
-   ========================================================================== */
+   ERROR STATES
+   ============================================================================= */
 
 .hero-sequence__error {
   position: absolute;
   inset: 0;
-
   z-index: 10;
-
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-
   text-align: center;
-
   padding: 30px;
-
-  background: #06080f;
-
+  background: var(--hero-bg);
   color: rgba(255, 255, 255, 0.6);
 }
 
 .hero-sequence__error p {
   margin-bottom: 8px;
-
   color: white;
   font-weight: 600;
 }
@@ -130,11 +124,28 @@
   font-size: 12px;
 }
 
+/* Inline wallet-connect error surfaced inside the intro phase */
+.error-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 10px 14px;
+  background: rgba(255, 92, 92, 0.08);
+  border: 1px solid rgba(255, 92, 92, 0.28);
+  pointer-events: auto;
+}
+
+.error-state p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255, 210, 210, 0.92);
+}
 
 /* =============================================================================
-   CINEMATIC SCRIM
-   --------------------------------------------------------------------------
-   ========================================================================== */
+   SCRIM
+   ============================================================================= */
 
 .hero-scrim {
   position: absolute;
@@ -142,47 +153,22 @@
   z-index: 2;
   pointer-events: none;
   background:
-    linear-gradient(90deg,
-      rgba(4, 7, 12, 0.62) 0%,
-      rgba(4, 7, 12, 0.28) 38%,
-      rgba(4, 7, 12, 0.05) 75%),
-    linear-gradient(180deg,
-      rgba(4, 7, 12, 0.25) 0%,
-      rgba(4, 7, 12, 0.02) 42%,
-      rgba(4, 7, 12, 0.72) 100%);
+    radial-gradient(ellipse 58% 68% at 12% 77%, rgba(3, 8, 14, 0.58), transparent 72%),
+    radial-gradient(ellipse 45% 58% at 89% 34%, rgba(4, 9, 15, 0.36), transparent 72%),
+    linear-gradient(90deg, rgba(4, 7, 12, 0.62) 0%, rgba(4, 7, 12, 0.28) 38%, rgba(4, 7, 12, 0.05) 75%),
+    linear-gradient(180deg, rgba(4, 7, 12, 0.25) 0%, transparent 42%, rgba(4, 7, 12, 0.52) 100%);
 }
+
+
+
 
 
 /* =============================================================================
-   TOPLINE
-   --------------------------------------------------------------------------
-   "Powered by Midnight � preview"
-   ========================================================================== */
-
-.hero-topline {
-  position: absolute;
-  top: 30px;
-  left: clamp(18px, 5vw, 98px);
-  z-index: 5;
-}
-
-
-.hero-topline .badge,
-.hero-topline [class*="badge"] {
-  background: transparent;
-  border: none;
-  padding: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.68);
-}
-
-
-/* =============================================================================
-   HERO CONTENT
-   ========================================================================== */
+   HERO PHASES
+   Four contiguous story beats (intro, privacy, proof, verified) scrubbed by
+   the scroll timeline. Only .hero-phase--intro is visible at rest; the rest
+   fade/scale in via GSAP and start hidden through inline styles in JSX.
+   ============================================================================= */
 
 .hero-phases {
   position: absolute;
@@ -191,42 +177,85 @@
   pointer-events: none;
 }
 
-
-/* =============================================================================
-   INDIVIDUAL PHASE
-   ========================================================================== */
-
 .hero-phase {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-end;
   text-align: left;
-  padding:
-    /*
-      top
-    */
-    0 clamp(28px, 6vw, 110px)
-    /*
-      bottom
-    */
-    clamp(100px, 11vh, 150px)
-    /*
-      left
-    */
-    clamp(28px, 6vw, 110px);
-
+  padding: 0 clamp(28px, 6vw, 110px);
   gap: 18px;
   pointer-events: none;
 }
 
+.hero-phase::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 
+.hero-phase--intro {
+  padding-bottom: clamp(104px, 12vh, 148px);
+}
+
+.hero-phase--privacy {
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 clamp(28px, 8vw, 150px) clamp(18vh, 24vh, 220px);
+}
+
+.hero-phase--proof {
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0 clamp(28px, 8vw, 150px) clamp(12vh, 18vh, 170px);
+}
+
+.hero-phase--verified {
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 clamp(28px, 8vw, 150px) clamp(15vh, 21vh, 200px);
+}
+
+.hero-phase--privacy h2,
+.hero-phase--privacy .lead,
+.hero-phase--verified h2,
+.hero-phase--verified .lead {
+  width: min(36vw, 510px);
+}
+
+.hero-phase--proof h2,
+.hero-phase--proof .lead {
+  width: min(42vw, 590px);
+}
+
+.hero-phase--privacy::before {
+  background: radial-gradient(ellipse 52% 58% at 82% 55%, rgba(3, 8, 14, 0.36), transparent 72%);
+}
+
+.hero-phase--proof::before {
+  background: radial-gradient(ellipse 52% 58% at 15% 55%, rgba(3, 8, 14, 0.32), transparent 72%);
+}
+
+/* Kicker label used ahead of the proof-pipeline phase, e.g. "01 / How a proof flows" */
+.hero-phase__kicker {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--hero-accent-b);
+  text-shadow: 0 2px 18px var(--hero-shadow);
+}
 
 /* =============================================================================
-   MAIN TITLE
-   ========================================================================== */
+   TITLES
+   ============================================================================= */
 
 .hero-phase h1,
 .hero-phase h2 {
@@ -234,128 +263,72 @@
   max-width: 10ch;
   font-family: var(--font-sans);
   font-weight: 700;
-  font-size: clamp(2.5rem,5vw,6rem);
+  font-size: clamp(2.65rem, 5.15vw, 6.2rem);
   line-height: 0.86;
   letter-spacing: -0.055em;
   text-transform: uppercase;
-  color: #f3f5f7;
+  color: var(--hero-ink);
+  text-wrap: balance;
+  text-shadow: 0 2px 24px var(--hero-shadow);
 }
 
-
-/* =============================================================================
-   ACCENT TEXT
-   ========================================================================== */
+.hero-phase h2 {
+  max-width: 9ch;
+  font-size: clamp(2.35rem, 4.15vw, 5.1rem);
+}
 
 .hero-phase h1 .accent {
-  background: linear-gradient(100deg,
-      #8fa7ff 0%,
-      #70d9e4 55%,
-      #62e6d4 100%);
-
+  background: linear-gradient(100deg, var(--hero-accent-a) 0%, #70d9e4 55%, var(--hero-accent-b) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-
-/* =============================================================================
-   SECONDARY PHASE TITLES
-   ========================================================================== */
-
-.hero-phase h2 {
-  max-width: 9ch;
-  font-size: clamp(2.5rem,5vw,6rem);
-}
-
-
-/* =============================================================================
-   DESCRIPTION
-   ========================================================================== */
-
 .hero-phase .lead {
-
   margin: 12px 0 0;
-
   max-width: 48ch;
-
-  font-size: clamp(0.9rem,
-      1.1vw,
-      1.08rem);
-
+  font-size: clamp(0.9rem, 1.1vw, 1.08rem);
   line-height: 1.55;
-
-  color: rgba(235, 240, 248, 0.72);
+  color: var(--hero-ink-dim);
+  text-shadow: 0 2px 18px var(--hero-shadow);
 }
-
 
 /* =============================================================================
    ACTIONS
-   ========================================================================== */
+   ============================================================================= */
 
 .hero-actions {
-
   display: flex;
-
   align-items: center;
-
   justify-content: flex-start;
-
   gap: 14px;
-
   margin-top: 12px;
 }
 
-
-/* =============================================================================
-   BUTTON REFINEMENT
-   ========================================================================== */
-
 .hero-actions .btn {
-
   border-radius: 999px;
-
   padding: 14px 24px;
-
   font-size: 11px;
-
   font-weight: 600;
-
   letter-spacing: 0.16em;
-
   text-transform: uppercase;
 }
 
-
-/* Primary button */
-
 .hero-actions .btn-primary {
-
   background: #edf2f4;
-
   color: #071018;
-
   border: 1px solid #edf2f4;
-
   box-shadow: none;
 }
 
-
-/* Secondary button */
-
-.hero-actions .btn-outline {
-
-  background: transparent;
-
-  color: rgba(255, 255, 255, 0.78);
-
-  border: 1px solid rgba(255, 255, 255, 0.42);
-}
-
-
-/* Hover */
-
 .hero-actions .btn-primary:hover {
   background: white;
+}
+
+.hero-actions .btn-outline {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.42);
 }
 
 .hero-actions .btn-outline:hover {
@@ -368,237 +341,782 @@
 }
 
 /* =============================================================================
-   HONESTY / PRIVACY MESSAGE
-   ========================================================================== */
+   HONESTY / PRIVACY NOTE
+   ============================================================================= */
 
 .hero-honesty {
-
   display: flex;
-
   align-items: center;
-
   gap: 7px;
-
   margin-top: 8px;
-
   font-size: 10px;
-
   letter-spacing: 0.08em;
-
   color: rgba(255, 255, 255, 0.42);
 }
 
-
 /* =============================================================================
    SCROLL INDICATOR
-   ========================================================================== */
+   ============================================================================= */
 
 .hero-scroll-hint {
-
   position: absolute;
-
   left: 50%;
   bottom: 28px;
-
   transform: translateX(-50%);
-
   z-index: 5;
-
   display: flex;
   flex-direction: column;
-
   align-items: center;
-
   gap: 10px;
-
   font-size: 9px;
   font-weight: 600;
-
   letter-spacing: 0.3em;
-
   text-transform: uppercase;
-
-  color: rgba(255, 255, 255, 0.48);
+  color: var(--hero-ink-faint);
+  animation: hero-scroll-breathe 2.4s ease-in-out infinite;
 }
-
-
-/* little vertical line */
 
 .hero-scroll-hint::after {
-
   content: "";
-
   width: 1px;
   height: 38px;
-
-  background: linear-gradient(to bottom,
-      rgba(255, 255, 255, 0.45),
-      transparent);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.45), transparent);
 }
 
-
-/* Hide the arrow because Aurum uses a minimal indicator */
-
+/* Minimal indicator only — Aurum-style hairline, no arrow glyph */
 .hero-scroll-hint svg {
   display: none;
 }
 
+@keyframes hero-scroll-breathe {
+  50% {
+    transform: translateX(-50%) translateY(5px);
+    opacity: 0.68;
+  }
+}
+
+/* =============================================================================
+   PROOF PIPELINE
+   Phase 1 is a cinematic pipeline: exactly one node is visually present at a
+   time, swapped by React state (`activeStage`) rather than laid out inline.
+   ============================================================================= */
+
+.hero-phase--privacy .pipe {
+  width: min(36vw, 510px);
+  min-height: 150px;
+  display: block;
+}
+
+.hero-phase--privacy .pipe-stage {
+  display: none;
+}
+
+.hero-phase--privacy .pipe-stage.lit {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 142px;
+  padding: clamp(20px, 2vw, 30px);
+  background: rgba(6, 12, 20, 0.46);
+  border: 1px solid var(--hero-line);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+}
+
+.hero-phase--privacy .pipe-stage__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hero-accent-b);
+}
+
+.hero-phase--privacy .pipe-stage__name {
+  font-size: clamp(0.92rem, 1.15vw, 1.05rem);
+  line-height: 1.45;
+  color: var(--hero-ink-dim);
+}
+
+/* Kind accents: private (user-held) vs. public (on-chain) stages read differently */
+.hero-phase--privacy .pipe-stage.lit[data-kind="private"] {
+  border-color: rgba(143, 167, 255, 0.36);
+}
+
+.hero-phase--privacy .pipe-stage.lit[data-kind="public"] {
+  border-color: rgba(98, 230, 212, 0.36);
+}
+
+/* Arrows are hidden by design — the pipeline reveals one stage at a time */
+.hero-phase--privacy .pipe-arrow {
+  display: none;
+}
 
 /* =============================================================================
    REDUCED MOTION
-   ========================================================================== */
+   Static hero (frame 001 + intro copy only); everything else is removed from
+   the timeline rather than just hidden, so no layout is reserved for it.
+   ============================================================================= */
 
 @media (prefers-reduced-motion: reduce) {
-
   .hero-scroll-hint {
+    display: none;
+    animation: none;
+  }
+
+  .hero-phase:not(.hero-phase--intro) {
     display: none;
   }
 }
 
-
 /* =============================================================================
-   TABLET
-   ========================================================================== */
+   TABLET (≤900px)
+   ============================================================================= */
 
 @media (max-width: 900px) {
-
   .hero-phase {
-
     padding-left: 7vw;
     padding-right: 7vw;
-
     padding-bottom: 110px;
+  }
+
+  .hero-phase--privacy,
+  .hero-phase--proof,
+  .hero-phase--verified {
+    align-items: flex-start;
+    padding-left: 7vw;
+    padding-right: 7vw;
+    padding-bottom: 118px;
+  }
+
+  .hero-phase--privacy h2,
+  .hero-phase--privacy .lead,
+  .hero-phase--proof h2,
+  .hero-phase--proof .lead,
+  .hero-phase--verified h2,
+  .hero-phase--verified .lead {
+    width: min(78vw, 580px);
   }
 
   .hero-phase h1,
   .hero-phase h2 {
+    font-size: clamp(3.8rem, 11vw, 6.5rem);
+  }
 
-    font-size: clamp(3.8rem,
-        11vw,
-        6.5rem);
+  .hero-phase--privacy .pipe {
+    width: min(78vw, 580px);
   }
 }
 
-
 /* =============================================================================
-   MOBILE
-   ========================================================================== */
+   MOBILE (≤640px)
+   ============================================================================= */
 
 @media (max-width: 640px) {
-
   .hero-topline {
-
     top: 22px;
     left: 22px;
   }
 
-  .hero-phase {
-
+  .hero-phase,
+  .hero-phase--intro,
+  .hero-phase--privacy,
+  .hero-phase--proof,
+  .hero-phase--verified {
     padding-left: 24px;
     padding-right: 24px;
-
     padding-bottom: 100px;
-
     gap: 12px;
   }
 
   .hero-phase::before {
-
     font-size: 8px;
-
     letter-spacing: 0.22em;
+  }
+
+  .hero-phase--privacy h2,
+  .hero-phase--privacy .lead,
+  .hero-phase--proof h2,
+  .hero-phase--proof .lead,
+  .hero-phase--verified h2,
+  .hero-phase--verified .lead {
+    width: auto;
   }
 
   .hero-phase h1,
   .hero-phase h2 {
-
     max-width: 8ch;
-
-    font-size: clamp(3.2rem,
-        16vw,
-        5rem);
-
+    font-size: clamp(3.2rem, 16vw, 5rem);
     line-height: 0.88;
   }
 
   .hero-phase .lead {
-
     max-width: 36ch;
-
     font-size: 0.85rem;
   }
 
   .hero-actions {
-
     flex-wrap: wrap;
   }
 
   .hero-actions .btn {
-
     padding: 12px 18px;
-
     font-size: 9px;
   }
 
   .hero-honesty {
-
     max-width: 34ch;
-
     font-size: 9px;
   }
 
   .hero-scroll-hint {
-
     bottom: 18px;
+    font-size: 8px;
+  }
 
+  .hero-phase--privacy .pipe {
+    width: 100%;
+    min-height: 132px;
+  }
+
+  .hero-phase--privacy .pipe-stage.lit {
+    min-height: 124px;
+  }
+}
+
+/* =============================================================================
+   PHASE 3 — CENTERED GLASS KYC COMPARISON
+   ============================================================================= */
+
+.hero-phase--verified {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+
+  padding: clamp(70px, 9vh, 110px) clamp(20px, 5vw, 90px);
+
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* =============================================================================
+   CONTENT WRAPPER
+   ============================================================================= */
+
+.hero-phase-content {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.hero-phase-content--comparison {
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  max-width: 1180px;
+
+  margin: 0 auto;
+
+  text-align: center;
+}
+
+/* =============================================================================
+   KICKER
+   ============================================================================= */
+
+.hero-phase--verified .hero-phase__kicker {
+  display: block;
+
+  margin-bottom: 12px;
+
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+
+  letter-spacing: 0.22em;
+  line-height: 1;
+
+  text-transform: uppercase;
+
+  color: rgba(98, 230, 212, 0.72);
+
+  text-shadow:
+    0 0 20px rgba(98, 230, 212, 0.18);
+}
+
+/* =============================================================================
+   TITLE
+   ============================================================================= */
+
+.hero-phase--verified h2 {
+  width: auto;
+  max-width: 12ch;
+
+  margin: 0 auto;
+
+  text-align: center;
+}
+
+/* =============================================================================
+   DESCRIPTION
+   ============================================================================= */
+
+.hero-phase--verified .lead {
+  width: min(620px, 90%);
+
+  margin: 14px auto 32px;
+
+  text-align: center;
+
+  color: rgba(235, 240, 248, 0.68);
+
+  text-shadow:
+    0 2px 18px rgba(1, 5, 10, 0.38);
+}
+
+/* =============================================================================
+   GLASS TABLE
+   ============================================================================= */
+
+.hero-phase--verified .kyc-compare {
+  position: relative;
+
+  width: min(100%, 1080px);
+
+  display: flex;
+  flex-direction: column;
+
+  margin: 0 auto;
+
+  overflow: hidden;
+
+  /* Glass surface */
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.095) 0%,
+      rgba(255, 255, 255, 0.045) 45%,
+      rgba(255, 255, 255, 0.018) 100%
+    );
+
+  /* Blur whatever is behind the table */
+  backdrop-filter:
+    blur(26px)
+    saturate(135%);
+
+  -webkit-backdrop-filter:
+    blur(26px)
+    saturate(135%);
+
+  /* Glass border */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  border-radius: 22px;
+
+  /* Depth */
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.42),
+    0 8px 30px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.025);
+
+  isolation: isolate;
+}
+
+/* Glass reflection */
+.hero-phase--verified .kyc-compare::before {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.09),
+      transparent 28%,
+      transparent 72%,
+      rgba(98, 230, 212, 0.025)
+    );
+
+  opacity: 0.7;
+
+  z-index: -1;
+}
+
+/* =============================================================================
+   TABLE ROWS
+   ============================================================================= */
+
+.hero-phase--verified .kyc-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(130px, 0.7fr)
+    minmax(0, 1.65fr)
+    minmax(0, 1.65fr);
+
+  min-height: 60px;
+
+  border-bottom:
+    1px solid rgba(255, 255, 255, 0.065);
+
+  transition:
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.hero-phase--verified .kyc-row:last-child {
+  border-bottom: none;
+}
+
+/* Hover only actual data rows */
+.hero-phase--verified
+.kyc-row:not(.kyc-row-head):hover {
+  background:
+    rgba(255, 255, 255, 0.035);
+
+  border-bottom-color:
+    rgba(255, 255, 255, 0.10);
+}
+
+/* =============================================================================
+   CELLS
+   ============================================================================= */
+
+.hero-phase--verified .kyc-label,
+.hero-phase--verified .kyc-cell {
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+
+  padding:
+    14px 20px;
+
+  font-size: 11px;
+  line-height: 1.45;
+
+  text-align: left;
+}
+
+/* =============================================================================
+   LEFT LABEL
+   ============================================================================= */
+
+.hero-phase--verified .kyc-label {
+  color:
+    rgba(255, 255, 255, 0.42);
+
+  font-size: 9px;
+  font-weight: 600;
+
+  letter-spacing: 0.12em;
+
+  text-transform: uppercase;
+}
+
+/* =============================================================================
+   NORMAL CELLS
+   ============================================================================= */
+
+.hero-phase--verified .kyc-cell {
+  gap: 10px;
+
+  color:
+    rgba(235, 240, 248, 0.66);
+}
+
+/* Prevent long content from breaking the grid */
+.hero-phase--verified .kyc-cell {
+  overflow-wrap: anywhere;
+}
+
+/* =============================================================================
+   HEADER
+   ============================================================================= */
+
+.hero-phase--verified .kyc-row-head {
+  min-height: 48px;
+
+  background:
+    rgba(255, 255, 255, 0.035);
+
+  border-bottom:
+    1px solid rgba(255, 255, 255, 0.11);
+}
+
+.hero-phase--verified
+.kyc-row-head
+.kyc-cell {
+  font-size: 9px;
+  font-weight: 600;
+
+  letter-spacing: 0.16em;
+
+  text-transform: uppercase;
+
+  color:
+    rgba(255, 255, 255, 0.48);
+}
+
+/* =============================================================================
+   TRADITIONAL KYC
+   ============================================================================= */
+
+.hero-phase--verified .kyc-traditional {
+  color:
+    rgba(255, 255, 255, 0.50);
+}
+
+.hero-phase--verified .kyc-traditional svg {
+  flex-shrink: 0;
+
+  opacity: 0.38;
+}
+
+/* =============================================================================
+   PROOFGATE
+   ============================================================================= */
+
+.hero-phase--verified .kyc-proofgate {
+  color:
+    rgba(225, 255, 248, 0.88);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(98, 230, 212, 0.018),
+      rgba(98, 230, 212, 0.045)
+    );
+}
+
+.hero-phase--verified .kyc-proofgate svg {
+  flex-shrink: 0;
+
+  opacity: 0.9;
+
+  filter:
+    drop-shadow(
+      0 0 8px rgba(98, 230, 212, 0.20)
+    );
+}
+
+/* =============================================================================
+   CENTER GLOW
+   ============================================================================= */
+
+.hero-phase--verified::before {
+  content: "";
+
+  position: absolute;
+
+  width: min(900px, 90vw);
+  height: min(600px, 70vh);
+
+  left: 50%;
+  top: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(98, 230, 212, 0.075) 0%,
+      rgba(98, 230, 212, 0.035) 28%,
+      transparent 68%
+    );
+
+  filter: blur(24px);
+
+  opacity: 0.9;
+
+  z-index: 0;
+}
+
+/* Additional dark edge protection */
+.hero-phase--verified::after {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      ellipse at center,
+      transparent 42%,
+      rgba(3, 6, 11, 0.22) 100%
+    );
+
+  z-index: 1;
+}
+
+/* =============================================================================
+   TABLET
+   ============================================================================= */
+
+@media (max-width: 900px) {
+
+  .hero-phase--verified {
+    padding:
+      70px
+      5vw
+      90px;
+  }
+
+  .hero-phase-content--comparison {
+    max-width: 850px;
+  }
+
+  .hero-phase--verified .kyc-compare {
+    width: 100%;
+    border-radius: 18px;
+  }
+
+  .hero-phase--verified .kyc-row {
+    grid-template-columns:
+      100px
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+
+    min-height: 56px;
+  }
+
+  .hero-phase--verified .kyc-label,
+  .hero-phase--verified .kyc-cell {
+    padding:
+      11px 12px;
+
+    font-size: 9px;
+  }
+
+  .hero-phase--verified .kyc-label {
+    font-size: 8px;
+  }
+
+  .hero-phase--verified
+  .kyc-row-head
+  .kyc-cell {
     font-size: 8px;
   }
 }
-/* Cinematic phase composition overrides */
-.hero-phase { width: 100%; height: 100%; min-height: 100%; }
-.hero-phase--intro { padding: 0 clamp(28px, 6vw, 110px) clamp(104px, 12vh, 148px); }
-.hero-phase--privacy { align-items: flex-end; justify-content: flex-end; padding: 0 clamp(28px, 8vw, 150px) clamp(18vh, 24vh, 220px); }
-.hero-phase--proof { align-items: flex-start; justify-content: flex-end; padding: 0 clamp(28px, 8vw, 150px) clamp(12vh, 18vh, 170px); }
-.hero-phase--verified { align-items: flex-end; justify-content: flex-end; padding: 0 clamp(28px, 8vw, 150px) clamp(15vh, 21vh, 200px); }
-.hero-phase--privacy h2, .hero-phase--privacy .lead, .hero-phase--verified h2, .hero-phase--verified .lead { width: min(36vw, 510px); }
-.hero-phase--proof h2, .hero-phase--proof .lead { width: min(42vw, 590px); }
-.hero-phase h1, .hero-phase h2 { font-size: clamp(2.65rem, 5.15vw, 6.2rem); line-height: .88; text-wrap: balance; text-shadow: 0 2px 24px rgba(1,5,10,.38); }
-.hero-phase h2 { font-size: clamp(2.35rem, 4.15vw, 5.1rem); }
-.hero-phase .lead { color: rgba(235,240,248,.8); text-shadow: 0 2px 18px rgba(1,5,10,.38); }
-.hero-phase::before { content: ''; position: absolute; inset: 0; pointer-events: none; }
-.hero-phase--privacy::before { background: radial-gradient(ellipse 52% 58% at 82% 55%, rgba(3,8,14,.36), transparent 72%); }
-.hero-phase--proof::before { background: radial-gradient(ellipse 52% 58% at 15% 55%, rgba(3,8,14,.32), transparent 72%); }
-.hero-scrim { background: radial-gradient(ellipse 58% 68% at 12% 77%, rgba(3,8,14,.58), transparent 72%), radial-gradient(ellipse 45% 58% at 89% 34%, rgba(4,9,15,.36), transparent 72%), linear-gradient(180deg, rgba(4,7,12,.26), transparent 42%, rgba(4,7,12,.52)); }
-.hero-scroll-hint { animation: hero-scroll-breathe 2.4s ease-in-out infinite; }
+
 /* =============================================================================
-   CINEMATIC PHASE COMPOSITION
-   The hero only contains its four copy phases. Product sections live below it.
-   ========================================================================== */
-.hero-phase { width: 100%; height: 100%; min-height: 100%; }
-.hero-phase--intro { padding-bottom: clamp(104px, 12vh, 148px); }
-.hero-phase--privacy { align-items: flex-end; padding: 0 clamp(28px, 8vw, 150px) clamp(18vh, 24vh, 220px); }
-.hero-phase--proof { padding: 0 clamp(28px, 8vw, 150px) clamp(12vh, 18vh, 170px); }
-.hero-phase--verified { align-items: flex-end; padding: 0 clamp(28px, 8vw, 150px) clamp(15vh, 21vh, 200px); }
-.hero-phase--privacy h2, .hero-phase--privacy .lead, .hero-phase--verified h2, .hero-phase--verified .lead { width: min(36vw, 510px); }
-.hero-phase--proof h2, .hero-phase--proof .lead { width: min(42vw, 590px); }
-.hero-phase h1, .hero-phase h2 { text-wrap: balance; text-shadow: 0 2px 24px rgba(1, 5, 10, .38); }
-.hero-phase .lead { color: rgba(235, 240, 248, .8); text-shadow: 0 2px 18px rgba(1, 5, 10, .38); }
-.hero-phase::before { content: ''; position: absolute; inset: 0; pointer-events: none; }
-.hero-phase--privacy::before { background: radial-gradient(ellipse 52% 58% at 82% 55%, rgba(3, 8, 14, .36), transparent 72%); }
-.hero-phase--proof::before { background: radial-gradient(ellipse 52% 58% at 15% 55%, rgba(3, 8, 14, .32), transparent 72%); }
-.hero-scroll-hint { animation: hero-scroll-breathe 2.4s ease-in-out infinite; }
-@keyframes hero-scroll-breathe { 50% { transform: translateX(-50%) translateY(5px); opacity: .68; } }
+   MOBILE
+   ============================================================================= */
 
-@media (max-width: 900px) {
-  .hero-phase--privacy, .hero-phase--proof, .hero-phase--verified { align-items: flex-start; padding-left: 7vw; padding-right: 7vw; padding-bottom: 118px; }
-  .hero-phase--privacy h2, .hero-phase--privacy .lead, .hero-phase--proof h2, .hero-phase--proof .lead, .hero-phase--verified h2, .hero-phase--verified .lead { width: min(78vw, 580px); }
-}
 @media (max-width: 640px) {
-  .hero-phase--intro, .hero-phase--privacy, .hero-phase--proof, .hero-phase--verified { padding-left: 24px; padding-right: 24px; padding-bottom: 104px; }
-  .hero-phase--privacy h2, .hero-phase--privacy .lead, .hero-phase--proof h2, .hero-phase--proof .lead, .hero-phase--verified h2, .hero-phase--verified .lead { width: auto; }
-}
-@media (prefers-reduced-motion: reduce) { .hero-phase:not(.hero-phase--intro) { display: none; } }
 
-/* The cinematic landing intentionally has no sections after the hero. Keep it
-   out of flex layout so ScrollTrigger's pin spacer provides the scroll runway. */
-.pg-landing { display: block; }
+  .hero-phase--verified {
+    padding:
+      60px
+      16px
+      70px;
+  }
+
+  .hero-phase-content--comparison {
+    width: 100%;
+  }
+
+  .hero-phase--verified .hero-phase__kicker {
+    font-size: 8px;
+    margin-bottom: 10px;
+  }
+
+  .hero-phase--verified h2 {
+    max-width: 10ch;
+
+    font-size:
+      clamp(2.1rem, 10vw, 3.2rem);
+  }
+
+  .hero-phase--verified .lead {
+    width: 92%;
+
+    margin:
+      10px auto 20px;
+
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .hero-phase--verified .kyc-compare {
+    width: 100%;
+
+    border-radius: 14px;
+
+    backdrop-filter:
+      blur(18px)
+      saturate(125%);
+
+    -webkit-backdrop-filter:
+      blur(18px)
+      saturate(125%);
+  }
+
+  .hero-phase--verified .kyc-row {
+    grid-template-columns:
+      62px
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+
+    min-height: 50px;
+  }
+
+  .hero-phase--verified .kyc-label,
+  .hero-phase--verified .kyc-cell {
+    padding: 8px;
+
+    font-size: 7.5px;
+    line-height: 1.35;
+  }
+
+  .hero-phase--verified .kyc-label {
+    font-size: 6.5px;
+    letter-spacing: 0.06em;
+  }
+
+  .hero-phase--verified .kyc-cell {
+    gap: 5px;
+  }
+
+  .hero-phase--verified
+  .kyc-row-head {
+    min-height: 38px;
+  }
+
+  .hero-phase--verified
+  .kyc-row-head
+  .kyc-cell {
+    font-size: 6.5px;
+    letter-spacing: 0.1em;
+  }
+
+  .hero-phase--verified
+  .kyc-cell
+  svg {
+    width: 10px;
+    height: 10px;
+  }
+}

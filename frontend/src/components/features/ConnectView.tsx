@@ -1,18 +1,59 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useMidnight } from '../../hooks/useMidnight';
 import { NETWORK } from '../../lib/env';
 import { HeroSequence, type HeroSequenceHandle } from '../visual/HeroSequence';
+import { ProofPipeline, type PipelineStage } from '../visual/ProofPipeline';
 import { Button } from '../ui/Button';
 import { StatusBadge } from '../ui/Badge';
-import { IconArrowDown, IconLock, IconWallet } from '../icons';
+import { IconArrowDown, IconCheck, IconLock, IconWallet, IconX } from '../icons';
 
 gsap.registerPlugin(ScrollTrigger);
+
+const STAGES: PipelineStage[] = [
+  {
+    icon: 'id',
+    label: 'Identity',
+    name: 'Your identity is verified by a trusted KYC provider without exposing it to the dApp',
+    kind: 'private',
+  },
+  {
+    icon: 'cred',
+    label: 'Private credential',
+    name: 'An issuer-signed compliance credential is securely stored inside your wallet',
+    kind: 'private',
+  },
+  {
+    icon: 'zk',
+    label: 'ZK proof',
+    name: 'Your wallet generates a zero-knowledge proof that confirms you meet the required conditions',
+    kind: 'transition',
+  },
+  {
+    icon: 'elig',
+    label: 'Eligibility',
+    name: 'The Midnight contract verifies your eligibility without learning your identity or private attributes',
+    kind: 'public',
+  },
+  {
+    icon: 'permit',
+    label: 'One-time permit',
+    name: 'A temporary authorization is created on-chain to allow the requested protected action',
+    kind: 'public',
+  },
+  {
+    icon: 'action',
+    label: 'Protected action',
+    name: 'The verified user can now access the regulated DeFi or RWA service without revealing personal data',
+    kind: 'public',
+  },
+];
 
 export function ConnectView() {
   const { state, connect, network, clearError } = useMidnight();
   const connecting = state.status === 'connecting';
+  const [proofStage, setProofStage] = useState(0);
 
   const heroSequenceRef = useRef<HeroSequenceHandle>(null);
   const heroRef = useRef<HTMLElement>(null);
@@ -28,9 +69,10 @@ export function ConnectView() {
     if (!hero) return;
 
     // Reduced-motion users get a static hero (frame 001 + first message) and
-    // the sections flow normally — no forced scrubbing or pinning.
+    // the sections flow normally ï¿½ no forced scrubbing or pinning.
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
+    const proofProgress = { stage: 0 };
     const timeline = gsap.timeline({
       scrollTrigger: {
         trigger: hero,
@@ -48,16 +90,46 @@ export function ConnectView() {
     });
 
     // The 192 frames are split into contiguous, non-overlapping story ranges:
-    // 001–043 hero, 044–094 privacy, 095–145 proof, 146–192 verified.
+    // 001ï¿½043 hero, 044ï¿½094 privacy, 095ï¿½145 proof, 146ï¿½192 verified.
     // Copy never overlaps another phase; each range includes an enter, hold, and exit.
     timeline
       .to(scrollHintRef.current, { autoAlpha: 0, y: 12, duration: 0.055, ease: 'power1.out' }, 0.03)
       .to(phase0Ref.current, { autoAlpha: 0, yPercent: -8, scale: 0.97, filter: 'blur(7px)', duration: 0.04, ease: 'power2.in' }, 0.185)
       .fromTo(phase1Ref.current, { autoAlpha: 0, xPercent: 12, yPercent: 4, scale: 0.95, filter: 'blur(12px)' }, { autoAlpha: 1, xPercent: 0, yPercent: 0, scale: 1, filter: 'blur(0px)', duration: 0.04, ease: 'power2.out' }, 0.235)
+      .to(proofProgress, {
+        stage: STAGES.length - 1,
+        duration: 0.15,
+        ease: 'none',
+        onStart: () => setProofStage(0),
+        onUpdate: function () {
+          const nextStage = Math.min(STAGES.length - 1, Math.round(proofProgress.stage));
+          setProofStage((current) => (current === nextStage ? current : nextStage));
+        },
+      }, 0.285)
       .to(phase1Ref.current, { autoAlpha: 0, xPercent: 8, yPercent: -5, scale: 1.02, filter: 'blur(7px)', duration: 0.04, ease: 'power2.in' }, 0.455)
       .fromTo(phase2Ref.current, { autoAlpha: 0, xPercent: -12, yPercent: 8, scale: 1.04, filter: 'blur(12px)' }, { autoAlpha: 1, xPercent: 0, yPercent: 0, scale: 1, filter: 'blur(0px)', duration: 0.04, ease: 'power2.out' }, 0.505)
       .to(phase2Ref.current, { autoAlpha: 0, xPercent: -8, yPercent: -8, scale: 0.98, filter: 'blur(7px)', duration: 0.04, ease: 'power2.in' }, 0.725)
-      .fromTo(phase3Ref.current, { autoAlpha: 0, xPercent: 9, yPercent: 10, scale: 0.91, filter: 'blur(12px)' }, { autoAlpha: 1, xPercent: 0, yPercent: 0, scale: 1, filter: 'blur(0px)', duration: 0.04, ease: 'power2.out' }, 0.775);
+
+      .fromTo(
+        phase3Ref.current,
+        {
+          autoAlpha: 0,
+          xPercent: 9,
+          yPercent: 8,
+          scale: 0.96,
+          filter: 'blur(10px)',
+        },
+        {
+          autoAlpha: 1,
+          xPercent: 0,
+          yPercent: 0,
+          scale: 1,
+          filter: 'blur(0px)',
+          duration: 0.07,
+          ease: 'power2.out',
+        },
+        0.775
+      );
 
     // Force the spacer to be measured now; without following content this is
     // what supplies the scroll runway for the pinned sequence.
@@ -84,7 +156,7 @@ export function ConnectView() {
 
         <div className="hero-topline">
           <StatusBadge tone={connecting ? 'dim' : 'accent'}>
-            {connecting ? 'Connecting…' : `Powered by Midnight · ${NETWORK}`}
+            {connecting ? 'Connectingï¿½' : `Powered by Midnight ï¿½ ${NETWORK}`}
           </StatusBadge>
         </div>
 
@@ -94,12 +166,12 @@ export function ConnectView() {
               Prove eligibility. <span className="accent">Not identity.</span>
             </h1>
             <p className="lead">
-              ProofGate lets regulated Web3 applications verify eligibility without exposing the user’s sensitive
+              ProofGate lets regulated Web3 applications verify eligibility without exposing the userï¿½s sensitive
               identity or compliance data.
             </p>
             <div className="hero-actions">
               <Button variant="primary" size="lg" onClick={connect} loading={connecting} icon={<IconWallet size={17} />}>
-                {connecting ? 'Connecting…' : `Connect wallet (${network})`}
+                {connecting ? 'Connectingï¿½' : `Connect wallet (${network})`}
               </Button>
             </div>
             {state.status === 'error' && (
@@ -122,11 +194,8 @@ export function ConnectView() {
             ref={phase1Ref}
             style={{ opacity: 0, visibility: 'hidden' }}
           >
-            <h2>Your data stays private.</h2>
-            <p className="lead">
-              The issuer-signed credential lives only in your wallet. Nothing personal is ever published, logged, or
-              shared.
-            </p>
+            <span className="hero-phase__kicker">01 / How a proof flows</span>
+            <ProofPipeline stages={STAGES} activeStage={proofStage} title="Proof flow" />
           </div>
 
           <div
@@ -136,7 +205,7 @@ export function ConnectView() {
           >
             <h2>Prove eligibility without revealing identity.</h2>
             <p className="lead">
-              A zero-knowledge proof is generated in your wallet and verified on Midnight — the verifier learns only
+              A zero-knowledge proof is generated in your wallet and verified on Midnight ï¿½ the verifier learns only
               that you qualify.
             </p>
           </div>
@@ -146,10 +215,24 @@ export function ConnectView() {
             ref={phase3Ref}
             style={{ opacity: 0, visibility: 'hidden' }}
           >
-            <h2>Eligibility verified.</h2>
-            <p className="lead">
-              A one-time permit is minted on-chain and ready for the protected action.
-            </p>
+            <div className="hero-phase-content hero-phase-content--comparison">
+              <span className="hero-phase__kicker">
+                04 / Why ProofGate
+              </span>
+
+              <h2>
+                Compliance without
+                <span className="accent"> exposure.</span>
+              </h2>
+
+              <p className="lead">
+                Traditional KYC requires applications to collect and store sensitive
+                personal information. ProofGate replaces that data exchange with
+                verifiable zero-knowledge proofs.
+              </p>
+
+              <KycComparison />
+            </div>
           </div>
         </div>
 
@@ -161,3 +244,60 @@ export function ConnectView() {
     </div>
   );
 }
+
+const KYC_ROWS: ReadonlyArray<{ label: string; traditional: string; proofgate: string }> = [
+  {
+    label: 'Data shared',
+    traditional: 'Full documents â€” ID, passport, proof of address',
+    proofgate: 'A zero-knowledge proof, and nothing else',
+  },
+  {
+    label: 'Storage',
+    traditional: 'Copies kept on the serviceâ€™s servers',
+    proofgate: 'Commitments + status flags on a public ledger',
+  },
+  {
+    label: 'Portability',
+    traditional: 'Every site starts the check from scratch',
+    proofgate: 'One credential works across many services',
+  },
+  {
+    label: 'Replayability',
+    traditional: 'Stored copies can be reused without consent',
+    proofgate: 'One-time permits, fresh salt per permit',
+  },
+  {
+    label: 'Breach risk',
+    traditional: 'Data at rest can leak in a breach',
+    proofgate: 'Nothing stored â€” proofs are ephemeral',
+  },
+  {
+    label: 'Revocation',
+    traditional: 'Often outside your control',
+    proofgate: 'Permits expire and revoke on-chain',
+  },
+];
+
+
+function KycComparison() {
+  return (
+    <div className="kyc-compare" role="table" aria-label="Traditional KYC versus ProofGate">
+      {KYC_ROWS.map((row) => (
+        <div className="kyc-row" role="row" key={row.label}>
+          <span className="kyc-label" role="cell">
+            {row.label}
+          </span>
+          <span className="kyc-cell kyc-traditional" role="cell">
+            <IconX size={13} aria-hidden="true" />
+            {row.traditional}
+          </span>
+          <span className="kyc-cell kyc-proofgate" role="cell">
+            <IconCheck size={13} aria-hidden="true" />
+            {row.proofgate}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
