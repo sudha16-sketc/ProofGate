@@ -7,6 +7,7 @@ import { bootSession, resetSession, useSessionStatus } from './store/session';
 import { isRoute } from './lib/navigation';
 
 import { AppShell } from './components/layout/AppShell';
+import { ConnectView } from './components/features/ConnectView';
 import { OverviewPage } from './components/pages/OverviewPage';
 import { CredentialPage } from './components/pages/CredentialPage';
 import { ProvePage } from './components/pages/ProvePage';
@@ -22,6 +23,7 @@ function App() {
   const sessionStatus = useSessionStatus();
   const [activityOpen, setActivityOpen] = useState(false);
 
+  const connected = state.status === 'connected';
   const activeRoute = isRoute(route) ? route : 'overview';
 
   // Boot the contract session when the wallet connects; tear it down when the
@@ -34,6 +36,18 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status]);
+
+  // Once the wallet connects, take the user straight to the prove-eligibility
+  // flow. Disconnecting (sidebar or wallet popover) drops back to the landing.
+  useEffect(() => {
+    if (connected) navigate('prove');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
+
+  // Full-screen landing hero + marketing sections until a wallet is connected.
+  if (!connected) {
+    return <ConnectView />;
+  }
 
   return (
     <AppShell

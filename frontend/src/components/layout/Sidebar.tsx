@@ -2,7 +2,7 @@ import { useMidnight } from '../../hooks/useMidnight';
 import { useSessionStatus } from '../../store/session';
 import { NETWORK } from '../../lib/env';
 import { ROUTES, type RouteId } from '../../lib/navigation';
-import { IconActivity, IconSettings } from '../icons';
+import { IconActivity, IconLogout, IconSettings } from '../icons';
 import { Logo } from '../ui/Misc';
 import { NetworkIndicator } from '../ui/Badge';
 import { Tooltip } from '../ui/Tooltip';
@@ -22,9 +22,10 @@ export function Sidebar({
   navigate: (route: string) => void;
   onOpenActivity: () => void;
 }) {
-  const { state } = useMidnight();
+  const { state, disconnect } = useMidnight();
   const sessionStatus = useSessionStatus();
   const live = state.status === 'connected' && sessionStatus !== 'error';
+  const connected = state.status === 'connected';
 
   const workspace = ROUTES.filter((r) => r.group === 'workspace');
   const operate = ROUTES.filter((r) => r.group === 'operate');
@@ -69,8 +70,21 @@ export function Sidebar({
           </button>
         </div>
         <span className="micro" style={{ paddingLeft: 4 }}>
-          Wallet {state.status === 'connected' ? 'connected' : 'not connected'}
+          Wallet {connected ? 'connected' : 'not connected'}
         </span>
+        {connected && (
+          <button
+            type="button"
+            className="btn btn-danger btn-block"
+            onClick={() => {
+              disconnect();
+              navigate('overview');
+            }}
+          >
+            <IconLogout size={15} />
+            Disconnect wallet
+          </button>
+        )}
       </div>
     </aside>
   );

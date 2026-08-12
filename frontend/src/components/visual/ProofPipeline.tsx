@@ -21,13 +21,19 @@ const ICONS = {
 /**
  * Scroll-illuminated proof pipeline. Each stage lights up as it enters the
  * viewport. Purely educational — describes the ProofGate architecture.
+ *
+ * An optional `activeStage` (stage index) can be passed to drive illumination
+ * from an external source such as the cinematic hero's master timeline; when
+ * omitted the component keeps its normal scroll-illumination behavior.
  */
 export function ProofPipeline({
   stages,
   title = 'How a proof flows',
+  activeStage,
 }: {
   stages: PipelineStage[];
   title?: string;
+  activeStage?: number;
 }) {
   return (
     <div className="pipe" aria-label={title}>
@@ -35,7 +41,7 @@ export function ProofPipeline({
         const Icon = ICONS[stage.icon];
         return (
           <Fragment key={stage.label}>
-            <StageNode stage={stage} icon={Icon} index={i} />
+            <StageNode stage={stage} icon={Icon} index={i} activeStage={activeStage} />
             {i < stages.length - 1 && <span className="pipe-arrow" aria-hidden="true" />}
           </Fragment>
         );
@@ -48,17 +54,20 @@ function StageNode({
   stage,
   icon: Icon,
   index,
+  activeStage,
 }: {
   stage: PipelineStage;
   icon: (p: { size?: number }) => React.ReactNode;
   index: number;
+  activeStage?: number;
 }) {
   const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.4 });
-  const style = { transitionDelay: inView ? `${index * 90}ms` : '0ms' };
+  const lit = activeStage === undefined ? inView : index === activeStage;
+  const style = { transitionDelay: lit ? `${index * 90}ms` : '0ms' };
   return (
     <div
       ref={ref}
-      className={`pipe-stage ${inView ? 'lit' : ''} ${stage.kind}`.trim()}
+      className={`pipe-stage ${lit ? 'lit' : ''} ${stage.kind}`.trim()}
       style={style}
     >
       <span className="pipe-icon" aria-hidden="true">

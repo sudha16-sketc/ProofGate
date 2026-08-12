@@ -310,6 +310,15 @@ export const IconGlobe = (p: IconProps) =>
     </>
   ));
 
+export const IconLogout = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+      <path d="M16 8l4 4-4 4" />
+      <path d="M20 12H9" />
+    </>
+  ));
+
 export const IconScale = (p: IconProps) =>
   base(p, (
     <>

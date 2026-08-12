@@ -1,191 +1,163 @@
+import { useLayoutEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useMidnight } from '../../hooks/useMidnight';
 import { NETWORK } from '../../lib/env';
-import { ProofPipeline, type PipelineStage } from '../visual/ProofPipeline';
+import { HeroSequence, type HeroSequenceHandle } from '../visual/HeroSequence';
 import { Button } from '../ui/Button';
 import { StatusBadge } from '../ui/Badge';
-import { IconCheck, IconGlobe, IconLock, IconShield, IconWallet, IconX, IconZap } from '../icons';
+import { IconArrowDown, IconLock, IconWallet } from '../icons';
 
-const STAGES: PipelineStage[] = [
-  { icon: 'id', label: 'Identity', name: 'Verified by the KYC provider', kind: 'private' },
-  { icon: 'cred', label: 'Private credential', name: 'Issuer-signed, held in your wallet', kind: 'private' },
-  { icon: 'zk', label: 'ZK proof', name: 'Generated locally in your wallet', kind: 'transition' },
-  { icon: 'elig', label: 'Eligibility', name: 'Predicates verified on Midnight', kind: 'public' },
-  { icon: 'permit', label: 'One-time permit', name: 'Public authorization state', kind: 'public' },
-  { icon: 'action', label: 'Protected action', name: 'Consumed by the third-party dApp', kind: 'public' },
-];
+gsap.registerPlugin(ScrollTrigger);
 
-/**
- * Landing hero + connect CTA, shown whenever the wallet is not connected.
- * The pipeline and honesty copy are visible before any wallet exists so the
- * privacy model is clear up front.
- */
-export function ConnectView({ navigate }: { navigate: (route: string) => void }) {
+export function ConnectView() {
   const { state, connect, network, clearError } = useMidnight();
   const connecting = state.status === 'connecting';
 
+  const heroSequenceRef = useRef<HeroSequenceHandle>(null);
+  const heroRef = useRef<HTMLElement>(null);
+  const phase0Ref = useRef<HTMLDivElement>(null);
+  const phase1Ref = useRef<HTMLDivElement>(null);
+  const phase2Ref = useRef<HTMLDivElement>(null);
+  const phase3Ref = useRef<HTMLDivElement>(null);
+  const scrollHintRef = useRef<HTMLDivElement>(null);
+
+  // Master scroll timeline: pins the hero and scrubs frames + copy together.
+  useLayoutEffect(() => {
+    const hero = heroRef.current;
+    if (!hero) return;
+
+    // Reduced-motion users get a static hero (frame 001 + first message) and
+    // the sections flow normally — no forced scrubbing or pinning.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const timeline = gsap.timeline({
+      scrollTrigger: {
+        trigger: hero,
+        start: 'top top',
+        end: () => `+=${window.innerHeight * 4.5}`,
+        scrub: 1.15,
+        pin: true,
+        pinSpacing: true,
+        anticipatePin: 1,
+        onUpdate: (self) => {
+          heroSequenceRef.current?.setProgress(self.progress);
+        },
+      },
+      defaults: { ease: 'none' },
+    });
+
+    // The 192 frames are split into contiguous, non-overlapping story ranges:
+    // 001–043 hero, 044–094 privacy, 095–145 proof, 146–192 verified.
+    // Copy never overlaps another phase; each range includes an enter, hold, and exit.
+    timeline
+      .to(scrollHintRef.current, { autoAlpha: 0, y: 12, duration: 0.055, ease: 'power1.out' }, 0.03)
+      .to(phase0Ref.current, { autoAlpha: 0, yPercent: -8, scale: 0.97, filter: 'blur(7px)', duration: 0.04, ease: 'power2.in' }, 0.185)
+      .fromTo(phase1Ref.current, { autoAlpha: 0, xPercent: 12, yPercent: 4, scale: 0.95, filter: 'blur(12px)' }, { autoAlpha: 1, xPercent: 0, yPercent: 0, scale: 1, filter: 'blur(0px)', duration: 0.04, ease: 'power2.out' }, 0.235)
+      .to(phase1Ref.current, { autoAlpha: 0, xPercent: 8, yPercent: -5, scale: 1.02, filter: 'blur(7px)', duration: 0.04, ease: 'power2.in' }, 0.455)
+      .fromTo(phase2Ref.current, { autoAlpha: 0, xPercent: -12, yPercent: 8, scale: 1.04, filter: 'blur(12px)' }, { autoAlpha: 1, xPercent: 0, yPercent: 0, scale: 1, filter: 'blur(0px)', duration: 0.04, ease: 'power2.out' }, 0.505)
+      .to(phase2Ref.current, { autoAlpha: 0, xPercent: -8, yPercent: -8, scale: 0.98, filter: 'blur(7px)', duration: 0.04, ease: 'power2.in' }, 0.725)
+      .fromTo(phase3Ref.current, { autoAlpha: 0, xPercent: 9, yPercent: 10, scale: 0.91, filter: 'blur(12px)' }, { autoAlpha: 1, xPercent: 0, yPercent: 0, scale: 1, filter: 'blur(0px)', duration: 0.04, ease: 'power2.out' }, 0.775);
+
+    // Force the spacer to be measured now; without following content this is
+    // what supplies the scroll runway for the pinned sequence.
+    ScrollTrigger.refresh();
+
+    // Re-measure the pin distance once late-loading assets are in.
+    const onLoad = () => ScrollTrigger.refresh();
+    window.addEventListener('load', onLoad);
+
+    return () => {
+      window.removeEventListener('load', onLoad);
+      timeline.scrollTrigger?.kill();
+      timeline.kill();
+    };
+  }, []);
+
+
   return (
-    <>
-      <section className="hero">
-        <span className="hero-eyebrow">
+    <div className="pg-landing">
+      <section className="cinematic-hero" ref={heroRef}>
+        <HeroSequence ref={heroSequenceRef} />
+
+        <div className="hero-scrim" aria-hidden="true" />
+
+        <div className="hero-topline">
           <StatusBadge tone={connecting ? 'dim' : 'accent'}>
-            {connecting ? 'Connectingâ€¦' : `Powered by Midnight Â· ${NETWORK}`}
+            {connecting ? 'Connecting…' : `Powered by Midnight · ${NETWORK}`}
           </StatusBadge>
-        </span>
-        <h1>
-          Prove eligibility. <span className="accent">Not identity.</span>
-        </h1>
-        <p className="lead">
-          ProofGate lets a service know you qualify â€” 18+, KYC-complete, in an allowed jurisdiction â€” without ever
-          learning your name, age, or where you live. Every action is a zero-knowledge proof; the ledger stores only
-          commitments and status flags.
-        </p>
-        <div className="hero-actions">
-          <Button variant="primary" size="lg" onClick={connect} loading={connecting} icon={<IconWallet size={17} />}>
-            {connecting ? 'Connectingâ€¦' : `Connect wallet (${network})`}
-          </Button>
-          <Button variant="outline" size="lg" onClick={() => navigate('trust')} icon={<IconShield size={17} />}>
-            How trust works
-          </Button>
         </div>
-        {state.status === 'error' && (
-          <div className="error-state" role="alert">
-            <p>{state.error}</p>
-            <Button variant="ghost" size="sm" onClick={clearError}>
-              Dismiss
-            </Button>
+
+        <div className="hero-phases">
+          <div className="hero-phase hero-phase--intro" ref={phase0Ref}>
+            <h1>
+              Prove eligibility. <span className="accent">Not identity.</span>
+            </h1>
+            <p className="lead">
+              ProofGate lets regulated Web3 applications verify eligibility without exposing the user’s sensitive
+              identity or compliance data.
+            </p>
+            <div className="hero-actions">
+              <Button variant="primary" size="lg" onClick={connect} loading={connecting} icon={<IconWallet size={17} />}>
+                {connecting ? 'Connecting…' : `Connect wallet (${network})`}
+              </Button>
+            </div>
+            {state.status === 'error' && (
+              <div className="error-state" role="alert">
+                <p>{state.error}</p>
+                <Button variant="ghost" size="sm" onClick={clearError}>
+                  Dismiss
+                </Button>
+              </div>
+            )}
+            <p className="hero-honesty">
+              <IconLock size={13} />
+              In this demo, a built-in demo issuer signs your claims. Your age, jurisdiction, and signature never leave
+              your wallet.
+            </p>
           </div>
-        )}
-        <p className="hero-honesty">
-          <IconLock size={13} />
-          In this demo, a built-in demo issuer signs your claims. Your age, jurisdiction, and signature never leave
-          your wallet.
-        </p>
+
+          <div
+            className="hero-phase hero-phase--privacy"
+            ref={phase1Ref}
+            style={{ opacity: 0, visibility: 'hidden' }}
+          >
+            <h2>Your data stays private.</h2>
+            <p className="lead">
+              The issuer-signed credential lives only in your wallet. Nothing personal is ever published, logged, or
+              shared.
+            </p>
+          </div>
+
+          <div
+            className="hero-phase hero-phase--proof"
+            ref={phase2Ref}
+            style={{ opacity: 0, visibility: 'hidden' }}
+          >
+            <h2>Prove eligibility without revealing identity.</h2>
+            <p className="lead">
+              A zero-knowledge proof is generated in your wallet and verified on Midnight — the verifier learns only
+              that you qualify.
+            </p>
+          </div>
+
+          <div
+            className="hero-phase hero-phase--verified"
+            ref={phase3Ref}
+            style={{ opacity: 0, visibility: 'hidden' }}
+          >
+            <h2>Eligibility verified.</h2>
+            <p className="lead">
+              A one-time permit is minted on-chain and ready for the protected action.
+            </p>
+          </div>
+        </div>
+
+        <div className="hero-scroll-hint" ref={scrollHintRef}>
+          <IconArrowDown size={15} />
+          Scroll to explore
+        </div>
       </section>
-
-      <Section title="What happens after you connect" subtitle="Connect your Midnight wallet â€” the proofs are generated in-wallet, then submitted to the network.">
-        <ProofPipeline stages={STAGES} />
-      </Section>
-
-      <Section title="Three guarantees" subtitle="The ProofGate contract enforces these on-chain.">
-        <div className="grid-3">
-          <Card icon={<IconZap size={18} />} title="Zero-knowledge">
-            Proofs are generated and verified locally or in-wallet. The verifier learns only that the proof is valid.
-          </Card>
-          <Card icon={<IconGlobe size={18} />} title="Public, but private">
-            The ledger stores commitments, policy parameters and status flags â€” never your attributes.
-          </Card>
-          <Card icon={<IconLock size={18} />} title="Unlinkable permits">
-            Each permit uses a fresh salt, so permit ids cannot be tied back to you.
-          </Card>
-        </div>
-      </Section>
-
-      <Section
-        title="Why ProofGate?"
-        subtitle="Traditional KYC trades your data for access. ProofGate trades a zero-knowledge proof."
-      >
-        <KycComparison />
-      </Section>
-    </>
-  );
-}
-
-const KYC_ROWS: ReadonlyArray<{ label: string; traditional: string; proofgate: string }> = [
-  {
-    label: 'Data shared',
-    traditional: 'Full documents â€” ID, passport, proof of address',
-    proofgate: 'A zero-knowledge proof, and nothing else',
-  },
-  {
-    label: 'Storage',
-    traditional: 'Copies kept on the serviceâ€™s servers',
-    proofgate: 'Commitments + status flags on a public ledger',
-  },
-  {
-    label: 'Portability',
-    traditional: 'Every site starts the check from scratch',
-    proofgate: 'One credential works across many services',
-  },
-  {
-    label: 'Replayability',
-    traditional: 'Stored copies can be reused without consent',
-    proofgate: 'One-time permits, fresh salt per permit',
-  },
-  {
-    label: 'Breach risk',
-    traditional: 'Data at rest can leak in a breach',
-    proofgate: 'Nothing stored â€” proofs are ephemeral',
-  },
-  {
-    label: 'Revocation',
-    traditional: 'Often outside your control',
-    proofgate: 'Permits expire and revoke on-chain',
-  },
-];
-
-function KycComparison() {
-  return (
-    <div className="kyc-compare" role="table" aria-label="Traditional KYC versus ProofGate">
-      <div className="kyc-row kyc-row-head" role="row">
-        <span className="kyc-label" role="columnheader" />
-        <span className="kyc-cell kyc-traditional" role="columnheader">
-          Traditional KYC
-        </span>
-        <span className="kyc-cell kyc-proofgate" role="columnheader">
-          ProofGate
-        </span>
-      </div>
-      {KYC_ROWS.map((row) => (
-        <div className="kyc-row" role="row" key={row.label}>
-          <span className="kyc-label" role="cell">
-            {row.label}
-          </span>
-          <span className="kyc-cell kyc-traditional" role="cell">
-            <IconX size={13} aria-hidden="true" />
-            {row.traditional}
-          </span>
-          <span className="kyc-cell kyc-proofgate" role="cell">
-            <IconCheck size={13} aria-hidden="true" />
-            {row.proofgate}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return (
-    <section style={{ marginTop: 'var(--sp-8)' }}>
-      <div className="section-head">
-        <div>
-          <h1 style={{ fontSize: 'var(--fs-h2)' }}>{title}</h1>
-          {subtitle && <p className="lead">{subtitle}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Card({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="card">
-      <span className="badge badge-proof" style={{ width: 'fit-content' }}>
-        {icon}
-      </span>
-      <h3 style={{ marginTop: 12 }}>{title}</h3>
-      <p className="muted" style={{ marginTop: 6 }}>
-        {children}
-      </p>
     </div>
   );
 }

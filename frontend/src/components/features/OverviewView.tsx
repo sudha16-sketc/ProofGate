@@ -1,5 +1,6 @@
 import { useSession, useSessionStatus } from '../../store/session';
 import { useMidnight } from '../../hooks/useMidnight';
+import { HeroVideo } from '../visual/HeroVideo';
 import { ProofPipeline, type PipelineStage } from '../visual/ProofPipeline';
 import { PrivacyBoundary } from '../visual/PrivacyBoundary';
 import { DappView } from '../visual/DappView';
@@ -31,7 +32,8 @@ export function OverviewView({ navigate }: { navigate: (route: string) => void }
 
   return (
     <>
-      <section className="hero">
+      <section className="hero hero-video-bg">
+        <HeroVideo />
         <span className="hero-eyebrow">
           <StatusBadge tone={ready ? 'ok' : 'accent'}>{ready ? 'Connected' : 'Connect to begin'}</StatusBadge>
         </span>
