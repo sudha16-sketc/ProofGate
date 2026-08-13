@@ -40,6 +40,9 @@ jobs:
       - name: Compile the Compact contract (skip prover-key generation)
         run: compact compile --skip-zk contracts/proofgate.compact /tmp/proofgate-compiled
 
+      - name: Compile the Schnorr prototype contract (skip prover-key generation)
+        run: compact compile --skip-zk contracts/schnorr-proto.compact /tmp/schnorr-compiled
+
       - name: Verify committed compiled artifacts are present
         run: |
           test -f managed/proofgate/compiler/contract-info.json
@@ -49,6 +52,9 @@ jobs:
           test -f managed/proofgate/keys/setPolicy.prover
           test -f frontend/public/keys/registerCredential.prover
           test -f frontend/public/zkir/checkCredential.zkir
+          test -f managed/schnorr-proto/compiler/contract-info.json
+          test -f managed/schnorr-proto/contract/index.js
+          test -f managed/schnorr-proto/keys/verify.prover
 
   test:
     name: Typecheck, tests and frontend build

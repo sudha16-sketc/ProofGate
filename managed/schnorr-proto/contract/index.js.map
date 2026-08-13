@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "file": "index.js",
+  "sourceRoot": "../../../",
+  "sources": ["contracts/schnorr-proto.compact", "compiler/standard-library.compact"],
+  "names": [],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;EAYA;;;;;;;;;;;;;;;;;;;;;;MAKA,AAAA,MASC;;;;;;;;;;;;;;;;;;;;;;OAAA;;;;GAXA;EAHD;;;;;UAAY,WAAoB;UAAE,WAAoB;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;IARtD;;;;;;;;;yEAA8B;IAC9B;;;;;;;;;yEAA8B;IAQ5B;;;;;;;2HAAgB,WAAS;;yEAArB;IACJ;;;;;;;2HAAgB,WAAS;;yEAArB;;;;;;;GACL;ECfD,AAAA,kBAAA;oEAAA;;;EAAA,AAAA,sBAAA;yDAAA;;;EAAA,AAAA,gBAAA;mDAAA;;;EAAA,AAAA,gBAAA;mDAAA;;;EAAA,AAAA,SAAA,KAAA;4CAAA,KAAA;;;EAAA,AAAA,SAAA,KAAA;4CAAA,KAAA;;;EAAA,AAAA,kBAAA;qDAAA;;;EAAA,AAAA,wBAAA,KAAA;2DAAA,KAAA;;;EDOA,AAAA,KAAwB;;0DAAxB,EAAwB;;;;;;;;;;;;;;GAAA;EACxB,AAAA,KAAwB;;0DAAxB,EAAwB;;;;;;;;;;;;;;GAAA;EACxB,AAAA,IAAuB;;0DAAvB,CAAuB;;;;;;;;;;;;;;GAAA;EACvB,AAAA,MAAyB;;0DAAzB,GAAyB;;;;;;;;;;;;;;GAAA;EAOzB,AAAA,SASC;UARO,GAAsD;;;;;;;;UACtD,GAAsD;0GAA7B;;;;;;;;;;;+KAAI;;;0GAAW;;;;;;;;;;;+KAAI;;UAC5C,WAAyG,mDAAvD;;;;;;;;;;;6IAAI;wEAAE;;;;;;;;;;;6IAAI;;;;;;;;UAC5D,GAAiC,8BAAV,WAAS;UAChC,KAAkC;;;;UAClC,KAA2B,iBAAf,GAAC,gBAAQ,GAAC,EAAE,GAAC;iDACX,KAAG;;iDAAkB,KAAG;;iDACxB,KAAG;;iDAAkB,KAAG;;;GAC7C;;;;;;;;;;;;;;;;IAtBD;qCAAA;;;;;;;;;;;0GAA8B;KAAA;IAC9B;qCAAA;;;;;;;;;;;0GAA8B;KAAA;;;;;;;;;;;;;;;"
+}
