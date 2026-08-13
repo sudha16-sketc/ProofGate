@@ -17,6 +17,7 @@ import { useSyncExternalStore } from 'react';
 import { getConnectedApi, getConnectionState } from '../hooks/useMidnight';
 import { CONTRACT_ADDRESS } from '../lib/env';
 import { classifyError, friendlyError } from '../lib/errors';
+import { newIdempotencyKey, trackEvent, type OperationType } from '../lib/analytics';
 import {
   DEFAULT_CREDENTIAL_VERSION,
   DEFAULT_KYC_LEVEL,
@@ -378,6 +379,34 @@ type RunOptions = {
   owner?: boolean;
 };
 
+/**
+ * Analytics mapping: which user-facing operation events a successful circuit
+ * call reports. Only the three user journeys emit events — owner/admin circuits
+ * stay silent so the metrics reflect real user activity.
+ *
+ * A ZK proof is generated and verified by the wallet for every circuit
+ * execution, hence the shared proof_generated/proof_verified events.
+ */
+const CIRCUIT_EVENTS: Record<string, OperationType[]> = {
+  registerCredential: [
+    'credential_registered',
+    'proof_generated',
+    'proof_verified',
+    'eligibility_verified',
+  ],
+  requestPermit: ['permit_created', 'proof_generated', 'proof_verified'],
+  consumePermit: ['permit_consumed', 'protected_action', 'proof_generated', 'proof_verified'],
+};
+
+/** The connected wallet's public address, or null when not connected. */
+function walletContext(): { address: string | null; networkId: string } {
+  const conn = getConnectionState();
+  return {
+    address: conn.status === 'connected' ? conn.address : null,
+    networkId: conn.status === 'connected' ? conn.networkId : 'unknown',
+  };
+}
+
 /** True when this session holds the deployed contract's owner secret. */
 function sessionIsOwner(): boolean {
   return computeMeta()?.isOwner === true;
@@ -420,15 +449,47 @@ export async function runContractCall(
   setBusy(opts.label);
   clearMessage();
 
+  // Shared idempotency key for every event of this logical action, so client
+  // or network retries never double-count in the analytics store.
+  const attemptId = newIdempotencyKey();
+  const { address, networkId } = walletContext();
+  const startedAt = Date.now();
+
   try {
     const result = await fn(providers, handle);
     patchActivity(entry.id, { status: 'confirmed', txId: result.txId, permitId: result.permitId });
+    const durationMs = Date.now() - startedAt;
+
+    // Best-effort analytics: report the success events for this circuit.
+    for (const operationType of CIRCUIT_EVENTS[opts.circuit] ?? []) {
+      trackEvent({
+        idempotencyKey: attemptId,
+        operationType,
+        status: 'success',
+        walletAddress: address,
+        txHash: result.txId,
+        durationMs,
+        network: networkId,
+      });
+    }
+
     await refreshLedger();
     return result;
   } catch (err) {
-    const { detail } = classifyError(err);
+    const { kind, detail } = classifyError(err);
     patchActivity(entry.id, { status: 'failed', detail: detail || undefined });
     setMessage({ kind: 'error', text: `${opts.label}: ${friendlyError(err)}`, detail: detail || undefined });
+
+    // Best-effort analytics: report the failure as a safe, classified code.
+    trackEvent({
+      idempotencyKey: attemptId,
+      operationType: 'operation_failed',
+      status: 'failed',
+      walletAddress: address,
+      errorCode: kind,
+      durationMs: Date.now() - startedAt,
+      network: networkId,
+    });
     return null;
   } finally {
     setBusy(null);

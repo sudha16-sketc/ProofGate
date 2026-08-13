@@ -2,7 +2,9 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useMidnight } from '../../hooks/useMidnight';
+import { useMetrics } from '../../hooks/useMetrics';
 import { NETWORK } from '../../lib/env';
+import { MetricsPanel } from '../analytics/MetricsPanel';
 import { HeroSequence, type HeroSequenceHandle } from '../visual/HeroSequence';
 import { ProofPipeline, type PipelineStage } from '../visual/ProofPipeline';
 import { Button } from '../ui/Button';
@@ -52,6 +54,7 @@ const STAGES: PipelineStage[] = [
 
 export function ConnectView() {
   const { state, connect, network, clearError } = useMidnight();
+  const { state: metricsState, refresh: refreshMetrics } = useMetrics();
   const connecting = state.status === 'connecting';
   const [proofStage, setProofStage] = useState(0);
 
@@ -203,11 +206,13 @@ export function ConnectView() {
             ref={phase2Ref}
             style={{ opacity: 0, visibility: 'hidden' }}
           >
+            <span className="hero-phase__kicker">02 / Proof network activity</span>
             <h2>Prove eligibility without revealing identity.</h2>
             <p className="lead">
-              A zero-knowledge proof is generated in your wallet and verified on Midnight � the verifier learns only
+              A zero-knowledge proof is generated in your wallet and verified on Midnight — the verifier learns only
               that you qualify.
             </p>
+            <MetricsPanel state={metricsState} onRetry={refreshMetrics} />
           </div>
 
           <div

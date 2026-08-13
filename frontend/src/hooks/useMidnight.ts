@@ -10,6 +10,8 @@ import { useSyncExternalStore } from 'react';
 import type { ConnectedAPI, InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { NETWORK } from '../lib/env';
+import { classifyError } from '../lib/errors';
+import { newIdempotencyKey, trackEvent } from '../lib/analytics';
 
 export type ConnectionState =
   | { status: 'idle' }
@@ -105,6 +107,14 @@ export async function connectWallet(): Promise<void> {
       networkId: config.networkId,
     };
     emit();
+
+    // Best-effort analytics: report the connect as an anonymous operation event.
+    trackEvent({
+      idempotencyKey: newIdempotencyKey(),
+      operationType: 'wallet_connected',
+      walletAddress: unshieldedAddress,
+      network: config.networkId,
+    });
   } catch (err) {
     connectedApi = null;
     connection = {
@@ -112,6 +122,17 @@ export async function connectWallet(): Promise<void> {
       error: `Could not connect to the wallet: ${err instanceof Error ? err.message : String(err)}`,
     };
     emit();
+
+    // Best-effort analytics: classify the failure into a safe error code and
+    // report it without any wallet identity (the address may not be known yet).
+    trackEvent({
+      idempotencyKey: newIdempotencyKey(),
+      operationType: 'operation_failed',
+      status: 'failed',
+      walletAddress: null,
+      errorCode: classifyError(err).kind,
+      network: NETWORK,
+    });
   }
 }
 

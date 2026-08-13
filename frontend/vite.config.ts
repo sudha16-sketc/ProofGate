@@ -14,6 +14,12 @@ export default defineConfig({
     fs: {
       allow: ['..'],
     },
+    // Forward analytics API calls to the local server during development, so
+    // the browser only ever talks to one origin. Production Express serves the
+    // built frontend and the /api routes from the same process.
+    proxy: {
+      '/api': 'http://127.0.0.1:8787',
+    },
   },
   resolve: {
     dedupe: [

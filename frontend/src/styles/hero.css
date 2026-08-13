@@ -1120,3 +1120,306 @@
     height: 10px;
   }
 }
+
+/* =============================================================================
+   PROOF NETWORK METRICS — Phase 2 glass panel
+   Compact activity card that shares the cinematic language: monospace micro
+   labels, glass surface, teal/indigo accents. Reads live from GET /api/metrics.
+   ============================================================================= */
+
+.hero-phase--proof .proof-metrics {
+  width: min(44vw, 620px);
+  margin-top: 18px;
+  padding: 16px 18px 14px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.035) 45%, rgba(255, 255, 255, 0.015) 100%);
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
+}
+
+.proof-metrics__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.proof-metrics__kicker {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(98, 230, 212, 0.8);
+}
+
+.proof-metrics__net {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(235, 240, 248, 0.5);
+}
+
+.proof-metrics__net svg {
+  color: rgba(98, 230, 212, 0.9);
+}
+
+/* Preprod onboarding target — the headline tracked metric */
+.proof-metrics__target {
+  display: grid;
+  grid-template-columns: 1fr minmax(120px, 40%);
+  grid-template-areas:
+    'copy track'
+    'note track';
+  column-gap: 18px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: rgba(6, 12, 20, 0.42);
+  border: 1px solid rgba(151, 227, 217, 0.22);
+  border-radius: 12px;
+}
+
+.proof-metrics__target-copy {
+  grid-area: copy;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.proof-metrics__target-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(235, 240, 248, 0.55);
+}
+
+.proof-metrics__target-value {
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--hero-ink);
+  text-shadow: 0 0 22px rgba(98, 230, 212, 0.25);
+}
+
+.proof-metrics__target-value em {
+  font-style: normal;
+  font-size: 0.62em;
+  font-weight: 500;
+  color: rgba(235, 240, 248, 0.45);
+}
+
+.proof-metrics__target-track {
+  grid-area: track;
+  height: 5px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.proof-metrics__target-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--hero-accent-a), var(--hero-accent-b));
+  box-shadow: 0 0 14px rgba(98, 230, 212, 0.55);
+  transition: width 600ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.proof-metrics__target-note {
+  grid-area: note;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(98, 230, 212, 0.72);
+}
+
+/* Stat tiles */
+.proof-metrics__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.proof-metrics__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+}
+
+.proof-metrics__tile--proof {
+  border-color: rgba(98, 230, 212, 0.24);
+}
+
+.proof-metrics__tile--accent {
+  border-color: rgba(143, 167, 255, 0.24);
+}
+
+.proof-metrics__tile-label {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(235, 240, 248, 0.48);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proof-metrics__tile-value {
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--hero-ink);
+}
+
+.proof-metrics__tile--proof .proof-metrics__tile-value {
+  color: var(--hero-accent-b);
+  text-shadow: 0 0 18px rgba(98, 230, 212, 0.3);
+}
+
+.proof-metrics__tile--accent .proof-metrics__tile-value {
+  color: var(--hero-accent-a);
+  text-shadow: 0 0 18px rgba(143, 167, 255, 0.3);
+}
+
+.proof-metrics__tile-sub {
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: rgba(235, 240, 248, 0.38);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proof-metrics__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(235, 240, 248, 0.34);
+}
+
+.proof-metrics__footer svg {
+  color: rgba(98, 230, 212, 0.6);
+}
+
+/* Skeleton + error states */
+.proof-metrics__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 2px 2px;
+}
+
+.proof-metrics__skeleton-bar {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+  background-size: 200% 100%;
+  animation: hero-skeleton-shimmer 1.4s linear infinite;
+}
+
+@keyframes hero-skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.proof-metrics__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 2px 4px;
+}
+
+.proof-metrics__error p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(235, 240, 248, 0.85);
+}
+
+.proof-metrics__error span {
+  font-size: 10px;
+  color: rgba(235, 240, 248, 0.45);
+}
+
+.proof-metrics__retry {
+  margin-top: 4px;
+  padding: 6px 14px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hero-accent-b);
+  background: rgba(98, 230, 212, 0.08);
+  border: 1px solid rgba(98, 230, 212, 0.3);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.proof-metrics__retry:hover {
+  background: rgba(98, 230, 212, 0.16);
+  border-color: rgba(98, 230, 212, 0.5);
+}
+
+@media (max-width: 900px) {
+  .hero-phase--proof .proof-metrics {
+    width: min(78vw, 580px);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-phase--proof .proof-metrics {
+    width: 100%;
+    padding: 12px 12px 12px;
+  }
+
+  .proof-metrics__target {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'copy'
+      'track'
+      'note';
+    row-gap: 8px;
+  }
+
+  .proof-metrics__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proof-metrics__skeleton-bar {
+    animation: none;
+  }
+}
