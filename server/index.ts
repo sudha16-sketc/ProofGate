@@ -1,0 +1,48 @@
+// ProofGate analytics server — startup entry point.
+//
+//   npm run server:dev        — watch mode for local development
+//   npm run server:start      — production-style start
+//
+// The server is the ONLY component that ever sees MONGODB_URI. Nothing
+// sensitive is exposed to the browser; the landing page reads GET /api/metrics.
+
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { loadConfig } from './config';
+import { connectAnalyticsDb } from './db/mongodb';
+import { createApp, ensureAnalyticsIndexes } from './app';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function main(): Promise<void> {
+  const config = loadConfig();
+  const analytics = await connectAnalyticsDb(config);
+  await ensureAnalyticsIndexes(analytics.db);
+
+  const staticDir = path.resolve(__dirname, '..', 'frontend', 'dist');
+  const app = createApp({
+    db: analytics.db,
+    config,
+    staticDir: existsSync(staticDir) ? staticDir : undefined,
+  });
+
+  const server = app.listen(config.port, () => {
+    console.log(`[proofgate-analytics] listening on :${config.port} (db=${config.mongoDatabase})`);
+  });
+
+  const shutdown = async (signal: string): Promise<void> => {
+    console.log(`[proofgate-analytics] ${signal} — shutting down`);
+    server.close();
+    await analytics.close();
+    process.exit(0);
+  };
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+}
+
+main().catch((err) => {
+  console.error('[proofgate-analytics] failed to start', err);
+  process.exit(1);
+});

@@ -12,6 +12,6 @@
     "allowSyntheticDefaultImports": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "tests/**/*"],
+  "include": ["src/**/*", "server/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist", "frontend"]
 }
