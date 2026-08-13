@@ -233,6 +233,9 @@ on a trusted oracle to whisper "verified". ProofGate:
   `-fetch-zk-config-provider`, `-indexer-public-data-provider`,
   `-network-id`, `-types`, `-utils`, `-protocol`), Wallet SDK 1.2.0.
 - **Frontend**: React 19, TypeScript 5.9, Vite 7 (WASM/ESM plugins).
+- **Analytics**: Express 5 + native `mongodb` driver + MongoDB Atlas
+  (anonymous activity store, server-side only), `mongodb-memory-server` for
+  headless tests.
 - **Tests**: Vitest 4 — headless, no Docker / proof server / network.
 - **Node**: ≥ 22.
 
@@ -288,7 +291,7 @@ can transfer governance to a new owner commitment with `transferOwnership`.
 npm test
 ```
 
-**Result (2026-08-09): 56 passing tests, 2 files.**
+**Result (2026-08-13): 72 passing tests, 3 files.**
 
 - `tests/proofgate.test.ts` (50) — headless contract tests against the compiled
   contract via the Compact runtime: pure-circuit commitment logic; the full
@@ -299,6 +302,11 @@ npm test
   **privacy** tests asserting
   private witnesses never appear in the public ledger or public proof data.
 - `tests/schnorr-prototype.test.ts` (6) — Schnorr prototype sanity checks.
+- `tests/analytics.test.ts` (16) — analytics store & metrics API against an
+  in-memory MongoDB: aggregation, success-rate, Preprod-target counting,
+  exactly-once idempotency, sensitive-field stripping, and the admin wallet
+  export (runs with `mongodb-memory-server`; skipped automatically when the
+  mongod binary cannot be provisioned).
 
 See [docs/screenshots/tests.png](./docs/screenshots/tests.png) for the
 screenshot of the passing run.
@@ -310,13 +318,97 @@ Workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 [![CI](https://github.com/sudha16-sketc/ProofGate/actions/workflows/ci.yml/badge.svg)](https://github.com/sudha16-sketc/ProofGate/actions/workflows/ci.yml)
 
 - **contract job**: installs the official Midnight Compact compiler (0.31.1)
-  via `midnightntwrk/setup-compact-action`, recompiles the Compact contract
-  (`--skip-zk` for CI speed), and verifies the committed compiled artifacts.
-- **test job**: `npm ci` → `npm run typecheck` → `npm test` → `npm --prefix
-  frontend ci` → `npm run frontend:build`.
+  via `midnightntwrk/setup-compact-action`, recompiles the Compact contract and
+  the Schnorr prototype (`--skip-zk` for CI speed), and verifies the committed
+  compiled artifacts.
+- **test job**: `npm ci` → `npm run typecheck` → `npm test` (contract +
+  analytics suites) → `npm --prefix frontend ci` → `npm run frontend:build`.
 
 > The badge reflects real GitHub Actions runs. The first run happens once this
 > branch is pushed to the repository.
+
+## Analytics & Privacy (Level 5)
+
+ProofGate ships a **minimal analytics store** that answers one question: *"how
+many users did what?"* It deliberately does **not** answer *"who did it?"*.
+
+> **Principle: track that an operation happened — never the private information
+> used to perform it.**
+
+### What is recorded
+
+Each anonymous operation event carries only:
+
+- the **public unshielded wallet address** (also the "Preprod user" identity —
+  this is not private data; it is the same address the wallet shares on-chain),
+- the **operation type** (`wallet_connected`, `credential_registered`,
+  `proof_generated`, `proof_verified`, `eligibility_verified`, `permit_created`,
+  `protected_action`, `permit_consumed`, `operation_failed`),
+- status (success/failed), optional tx hash, wall-clock duration, and a **safe
+  classified error code** — never raw error text that could embed witnesses.
+
+**Never recorded:** proofs, credentials, ages, jurisdictions, signatures, seed
+phrases, private keys, or any field beyond the whitelist. `validateEvent`
+strips unknown fields before anything reaches MongoDB, and a test asserts
+sensitive fields (`secret`, `age`, `jurisdiction`) never persist.
+
+### Architecture
+
+| Piece | Where | Purpose |
+|---|---|---|
+| `server/` | repo root (Express + native `mongodb` driver) | the **only** component that ever sees `MONGODB_URI` |
+| `frontend/src/lib/analytics.ts` | browser | best-effort event reporter + metrics reader (relative `/api`, overridable via `VITE_API_URL`) |
+| MongoDB Atlas | hosted database | aggregate activity — explicitly **not** a source of truth for the contract |
+
+Endpoints:
+
+- `GET /api/metrics` — public aggregate snapshot for the landing page.
+- `GET /api/health` — liveness + Mongo connectivity.
+- `POST /api/events` — anonymous event ingestion, rate-limited, exactly-once
+  idempotent (unique `{idempotencyKey, operationType}` index).
+- `GET /api/admin/users` — **admin-only** wallet export, guarded by a bearer
+  token (`ADMIN_API_TOKEN`); never exposed on the public page.
+
+### Running it
+
+```bash
+cp .env.example .env            # set MONGODB_URI (Atlas) + ADMIN_API_TOKEN
+npm run server:dev              # starts the API on :8787 (Vite proxies /api in dev)
+npm run analytics:report        # print the aggregate snapshot
+npm run analytics:export-users  # admin wallet export (requires ADMIN_API_TOKEN)
+```
+
+Production: `npm run frontend:build` then `npm run server:start` — Express
+serves both the API and `frontend/dist` from one origin.
+
+### The Preprod onboarding target
+
+The landing page's Phase 2 hero shows a live "Preprod users **37 / 50**"
+tracker. `preprodUsers` counts wallets first seen on `PREPROD_TARGET_NETWORK`
+(`preprod`) and `preprodTarget` is `PREPROD_TARGET_COUNT` (50). The store never
+fabricates users — the number is 0 until real wallets transact on Preprod and
+report events.
+
+## Level 5 Submission Evidence
+
+- **MongoDB Atlas analytics** — minimal store (`server/`), designed as a
+  derived activity log, not a source of truth; the contract ledger remains
+  authoritative.
+- **50 real Preprod users** — `PREPROD_TARGET_COUNT=50`; `preprodUsers` counts
+  real wallets first seen on Midnight Preprod, shown live as "37 / 50" on the
+  landing page.
+- **Metrics API** — `GET /api/metrics` returns the required shape (`users`,
+  `operations`, `proofs`, `permits`, `protectedActions`, `successRate`,
+  `preprodUsers`, `preprodTarget`, `network`).
+- **Landing-page metrics** — cinematic glass panel inside the existing Phase 2
+  hero story (`02 / Proof network activity`), with skeleton/error states and
+  reduced-motion support.
+- **Feedback loop** — see [`docs/feedback.md`](./docs/feedback.md).
+- **Tooling** — `analytics:report` / `analytics:export-users` npm scripts.
+- **Tests** — 16 headless analytics tests (aggregation, idempotency,
+  sensitive-field exclusion, Preprod counting, admin export).
+- **Commits** — this Level 5 work is tracked across the git history
+  (25 → 28+ commits).
 
 ## Deployment
 
@@ -409,9 +501,14 @@ sole owner.
 ```bash
 npm install
 cp frontend/.env.example frontend/.env.local
+cp .env.example .env                       # optional: analytics (MONGODB_URI, ADMIN_API_TOKEN)
 docker compose up -d --wait proof-server   # required: the dApp proves via the local proof server
+npm run server:dev                         # optional: analytics API on :8787
 npm run frontend:dev      # http://127.0.0.1:8080 — connect your Lace wallet on Midnight Preview
 ```
+
+The analytics server is optional for the demo; the landing page degrades
+gracefully to "Metrics temporarily unavailable" when it is not running.
 
 > **Why a proof server is required:** ProofGate uses custom circuits, so proving
 > must happen against a server that holds (or receives) the circuit keys. The
@@ -449,7 +546,7 @@ we do not claim organizer approval.
 
 | Capture | File |
 |---|---|
-| Test suite output (56 passing) | [`docs/screenshots/tests.png`](./docs/screenshots/tests.png) |
+| Test suite output (72 passing) | [`docs/screenshots/tests.png`](./docs/screenshots/tests.png) |
 | Web UI | *(to be added)* |
 
 ## Security / Privacy Considerations
@@ -457,7 +554,13 @@ we do not claim organizer approval.
 - **No secrets in the repo.** Wallets (`.<midnight-state.json`,
   `.midnight-wallet-state/`, `midnight-level-db/`) and `.env` files are
   git-ignored; only public network configuration lives in
-  `frontend/.env.example`.
+  `frontend/.env.example` and `.env.example`.
+- **MongoDB stays server-side.** The browser only ever reads `GET /api/metrics`
+  (aggregates) and reports anonymous events; `MONGODB_URI` and
+  `ADMIN_API_TOKEN` are never exposed through `VITE_*` variables or the bundle.
+- **Analytics is privacy-minimal.** Only the public wallet address and a safe
+  operation-type whitelist are stored; `validateEvent` strips unknown fields,
+  and a test asserts sensitive fields never persist.
 - **Single runtime copy.** `@midnight-ntwrk/onchain-runtime-v3` is pinned via
   `overrides`; two copies break `StateValue` (see
   `frontend/vite.config.ts` dedupe).
