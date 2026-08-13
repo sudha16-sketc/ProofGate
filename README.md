@@ -378,6 +378,10 @@ npm run analytics:report        # print the aggregate snapshot
 npm run analytics:export-users  # admin wallet export (requires ADMIN_API_TOKEN)
 ```
 
+If `MONGODB_URI` is left unset, the server falls back to an **in-memory MongoDB**
+(`mongodb-memory-server`) so local development works with zero setup — data
+resets on restart, so use Atlas (`MONGODB_URI=…`) for the real deployment.
+
 Production: `npm run frontend:build` then `npm run server:start` — Express
 serves both the API and `frontend/dist` from one origin.
 

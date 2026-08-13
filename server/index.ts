@@ -21,6 +21,10 @@ async function main(): Promise<void> {
   const analytics = await connectAnalyticsDb(config);
   await ensureAnalyticsIndexes(analytics.db);
 
+  if (analytics.ephemeral) {
+    console.log('[proofgate-analytics] no MONGODB_URI set — using an in-memory MongoDB (data resets on restart)');
+  }
+
   const staticDir = path.resolve(__dirname, '..', 'frontend', 'dist');
   const app = createApp({
     db: analytics.db,

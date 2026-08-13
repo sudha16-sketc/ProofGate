@@ -18,7 +18,11 @@ function int(name: string, fallback: number): number {
 }
 
 export type AnalyticsConfig = {
-  /** MongoDB connection string. Must not be shared with the browser. */
+  /**
+   * MongoDB connection string. Empty means "run against an in-memory MongoDB
+   * for local development" (data resets on restart). Must never be shared with
+   * the browser.
+   */
   mongoUri: string;
   /** Database name inside the MongoDB deployment. */
   mongoDatabase: string;
@@ -42,7 +46,7 @@ export type AnalyticsConfig = {
 
 export function loadConfig(): AnalyticsConfig {
   return {
-    mongoUri: env('MONGODB_URI') ?? 'mongodb://127.0.0.1:27017',
+    mongoUri: env('MONGODB_URI') ?? '',
     mongoDatabase: env('MONGODB_DATABASE') ?? 'proofgate',
     port: int('PORT', 8787),
     adminApiToken: env('ADMIN_API_TOKEN') ?? '',
