@@ -16,7 +16,7 @@ export function HeroVideo() {
         loop
         playsInline
         preload="metadata"
-        poster="/heroframes/frame-001.jpg"
+        poster="/heroframes/frame_0001.jpg"
         disablePictureInPicture
         tabIndex={-1}
       >

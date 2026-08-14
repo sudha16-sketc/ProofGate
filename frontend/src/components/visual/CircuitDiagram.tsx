@@ -11,7 +11,7 @@ export function CircuitDiagram() {
       <svg viewBox="0 0 760 360" width="100%" height="auto" aria-hidden="true">
         <defs>
           <pattern id="cd-grid" width="22" height="22" patternUnits="userSpaceOnUse">
-            <path d="M 22 0 L 0 0 0 22" fill="none" stroke="rgba(0, 229, 255, 0.06)" strokeWidth="1" />
+            <path d="M 22 0 L 0 0 0 22" fill="none" stroke="rgba(143, 167, 255, 0.07)" strokeWidth="1" />
           </pattern>
           <filter id="cd-glow">
             <feGaussianBlur stdDeviation="3" result="b" />
@@ -22,26 +22,26 @@ export function CircuitDiagram() {
           </filter>
         </defs>
         <rect width="760" height="360" fill="url(#cd-grid)" rx="14" />
-        <text x="20" y="30" className="cd-stage-label" fill="#e6f7ff">1 · private inputs (witness)</text>
-        <text x="296" y="30" className="cd-stage-label" fill="#e6f7ff">2 · circuit gates</text>
-        <text x="600" y="30" className="cd-stage-label" fill="#e6f7ff">3 · proof</text>
+        <text x="20" y="30" className="cd-stage-label" fill="#aabcf5">1 · private inputs (witness)</text>
+        <text x="296" y="30" className="cd-stage-label" fill="#aabcf5">2 · circuit gates</text>
+        <text x="600" y="30" className="cd-stage-label" fill="#aabcf5">3 · proof</text>
 
         <g className="cd-group">
           <rect x="18" y="48" width="240" height="52" rx="9" className="cd-box cd-private" />
-          <text x="32" y="70" className="cd-term" fill="#7ff3ff">identity</text>
-          <text x="32" y="88" className="cd-mono" fill="#8be9fd">cm(issuer, subject, kyc)</text>
+          <text x="32" y="70" className="cd-term" fill="#aabcf5">identity</text>
+          <text x="32" y="88" className="cd-mono" fill="#8fa7ff">cm(issuer, subject, kyc)</text>
 
           <rect x="18" y="112" width="240" height="52" rx="9" className="cd-box cd-private" />
-          <text x="32" y="134" className="cd-term" fill="#7ff3ff">age</text>
-          <text x="32" y="152" className="cd-mono" fill="#8be9fd">cm(dob, issuer sig)</text>
+          <text x="32" y="134" className="cd-term" fill="#aabcf5">age</text>
+          <text x="32" y="152" className="cd-mono" fill="#8fa7ff">cm(dob, issuer sig)</text>
 
           <rect x="18" y="176" width="240" height="52" rx="9" className="cd-box cd-private" />
-          <text x="32" y="198" className="cd-term" fill="#7ff3ff">jurisdiction</text>
-          <text x="32" y="216" className="cd-mono" fill="#8be9fd">cm(us, fr, de, …)</text>
+          <text x="32" y="198" className="cd-term" fill="#aabcf5">jurisdiction</text>
+          <text x="32" y="216" className="cd-mono" fill="#8fa7ff">cm(us, fr, de, …)</text>
 
           <rect x="18" y="240" width="240" height="52" rx="9" className="cd-box cd-private" />
-          <text x="32" y="262" className="cd-term" fill="#7ff3ff">kyc level</text>
-          <text x="32" y="280" className="cd-mono" fill="#8be9fd">cm(basic, enhanced, l3)</text>
+          <text x="32" y="262" className="cd-term" fill="#aabcf5">kyc level</text>
+          <text x="32" y="280" className="cd-mono" fill="#8fa7ff">cm(basic, enhanced, l3)</text>
         </g>
 
         <g className="cd-group">

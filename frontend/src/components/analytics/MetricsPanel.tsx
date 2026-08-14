@@ -6,6 +6,7 @@
 // of breaking the hero. No wallet data is ever shown here (that export is
 // admin-only and never lands on the public landing page).
 
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconActivity, IconCheck, IconZap } from '../icons';
 import type { MetricsSnapshot } from '../../lib/analytics';
 import type { MetricsState } from '../../hooks/useMetrics';
@@ -94,7 +95,7 @@ function MetricsGrid({ metrics }: { metrics: MetricsSnapshot }) {
         <div className="proof-metrics__target-copy">
           <span className="proof-metrics__target-label">Preprod users</span>
           <span className="proof-metrics__target-value">
-            {metrics.preprodUsers.toLocaleString()} <em>/ {metrics.preprodTarget.toLocaleString()}</em>
+            <CountUp value={metrics.preprodUsers.toLocaleString()} /> <em>/ {metrics.preprodTarget.toLocaleString()}</em>
           </span>
         </div>
         <div
@@ -116,7 +117,9 @@ function MetricsGrid({ metrics }: { metrics: MetricsSnapshot }) {
         {tiles(metrics).map((tile) => (
           <div className={`proof-metrics__tile${tile.accent ? ` proof-metrics__tile--${tile.accent}` : ''}`} key={tile.label}>
             <span className="proof-metrics__tile-label">{tile.label}</span>
-            <span className="proof-metrics__tile-value">{tile.value}</span>
+            <span className="proof-metrics__tile-value">
+              <CountUp value={tile.value} />
+            </span>
             {tile.sub && <span className="proof-metrics__tile-sub">{tile.sub}</span>}
           </div>
         ))}
@@ -127,5 +130,60 @@ function MetricsGrid({ metrics }: { metrics: MetricsSnapshot }) {
         Aggregates public operation events only — no identity data is stored.
       </div>
     </div>
+  );
+}
+
+// Counts up to the displayed value on mount and on refresh. Respects
+// prefers-reduced-motion; format is always the real number, never fabricated.
+function CountUp({ value }: { value: string }) {
+  const parsed = useMemo(() => {
+    const match = /^([^0-9]*)([0-9][0-9,.]*)(.*)$/.exec(value);
+    if (!match) return { num: NaN, prefix: value, suffix: '' };
+    return { num: parseFloat(match[2].replace(/,/g, '')), prefix: match[1], suffix: match[3] };
+  }, [value]);
+
+  const reduced = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    []
+  );
+
+  const [display, setDisplay] = useState(parsed.num);
+  const fromRef = useRef(0);
+
+  useEffect(() => {
+    const { num } = parsed;
+    if (!Number.isFinite(num) || reduced) {
+      setDisplay(num);
+      fromRef.current = num;
+      return;
+    }
+    if (fromRef.current === num) return;
+
+    const from = fromRef.current;
+    const start = performance.now();
+    const duration = 800;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = Math.round(from + (num - from) * eased);
+      setDisplay(current);
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = num;
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [parsed, reduced]);
+
+  const shown = Number.isFinite(display) ? display.toLocaleString() : '';
+  return (
+    <>
+      {parsed.prefix}
+      {shown}
+      {parsed.suffix}
+    </>
   );
 }

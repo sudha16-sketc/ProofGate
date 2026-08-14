@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMidnight, getConnectedApi } from '../../hooks/useMidnight';
 import { useSessionMeta } from '../../store/session';
+import { useUsername } from '../../store/username';
 import { Button } from './Button';
 import { Badge, StatusBadge } from './Badge';
 import { IconWallet } from '../icons';
@@ -24,6 +25,7 @@ async function fetchBalances(): Promise<Balances> {
 export function WalletButton() {
   const { state, disconnect } = useMidnight();
   const meta = useSessionMeta();
+  const username = useUsername(state.status === 'connected' ? state.address : '');
   const [open, setOpen] = useState(false);
   const [balances, setBalances] = useState<Balances | null>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -102,6 +104,13 @@ export function WalletButton() {
                 {NETWORK}
               </Badge>
               <StatusBadge tone={credentialTone}>{credentialLabel}</StatusBadge>
+            </div>
+
+            <div className="mini-stat">
+              <span className="k">Name</span>
+              <span className="v truncate" title={username ?? undefined}>
+                {username ?? '—'}
+              </span>
             </div>
 
             <div className="mini-stat">

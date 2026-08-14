@@ -4,10 +4,12 @@ import './index.css';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useMidnight } from './hooks/useMidnight';
 import { bootSession, resetSession, useSessionStatus } from './store/session';
+import { useUsername } from './store/username';
 import { isRoute } from './lib/navigation';
 
 import { AppShell } from './components/layout/AppShell';
 import { ConnectView } from './components/features/ConnectView';
+import { UsernameSetupModal } from './components/features/UsernameSetupModal';
 import { OverviewPage } from './components/pages/OverviewPage';
 import { CredentialPage } from './components/pages/CredentialPage';
 import { ProvePage } from './components/pages/ProvePage';
@@ -25,6 +27,12 @@ function App() {
 
   const connected = state.status === 'connected';
   const activeRoute = isRoute(route) ? route : 'overview';
+
+  // Required one-time setup: the wallet must pick a display name (mapped to its
+  // public address) before the app is usable. Tracked per wallet in the store.
+  const connectedAddress = connected ? state.address : null;
+  const savedUsername = useUsername(connectedAddress ?? '');
+  const needsUsername = connected && connectedAddress !== null && savedUsername === null;
 
   // Boot the contract session when the wallet connects; tear it down when the
   // wallet disconnects or the connection errors.
@@ -50,22 +58,27 @@ function App() {
   }
 
   return (
-    <AppShell
-      route={activeRoute}
-      navigate={navigate}
-      activityOpen={activityOpen}
-      onActivityOpen={() => setActivityOpen(true)}
-      onActivityClose={() => setActivityOpen(false)}
-    >
-      {activeRoute === 'overview' && <OverviewPage navigate={navigate} />}
-      {activeRoute === 'credential' && <CredentialPage />}
-      {activeRoute === 'prove' && <ProvePage navigate={navigate} />}
-      {activeRoute === 'permits' && <PermitsPage />}
-      {activeRoute === 'ledger' && <LedgerPage />}
-      {activeRoute === 'trust' && <TrustPage />}
-      {activeRoute === 'owner' && <OwnerPage />}
-      {activeRoute === 'settings' && <SettingsPage navigate={navigate} />}
-    </AppShell>
+    <>
+      {needsUsername && connectedAddress !== null && (
+        <UsernameSetupModal address={connectedAddress} onSaved={() => {}} />
+      )}
+      <AppShell
+        route={activeRoute}
+        navigate={navigate}
+        activityOpen={activityOpen}
+        onActivityOpen={() => setActivityOpen(true)}
+        onActivityClose={() => setActivityOpen(false)}
+      >
+        {activeRoute === 'overview' && <OverviewPage navigate={navigate} />}
+        {activeRoute === 'credential' && <CredentialPage />}
+        {activeRoute === 'prove' && <ProvePage navigate={navigate} />}
+        {activeRoute === 'permits' && <PermitsPage />}
+        {activeRoute === 'ledger' && <LedgerPage />}
+        {activeRoute === 'trust' && <TrustPage />}
+        {activeRoute === 'owner' && <OwnerPage />}
+        {activeRoute === 'settings' && <SettingsPage navigate={navigate} />}
+      </AppShell>
+    </>
   );
 }
 

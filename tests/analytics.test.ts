@@ -161,6 +161,85 @@ describeSuite('analytics store & API', () => {
     expect(m.successRate).toBeGreaterThan(0);
   });
 
+  it('rejects a username without a walletAddress', async () => {
+    const res = await fetch(`${baseUrl}/api/users/username`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'alice' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an empty or whitespace-only username', async () => {
+    for (const username of ['', '   ', ' \t ']) {
+      const res = await fetch(`${baseUrl}/api/users/username`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ walletAddress: WALLET_PREPROD_A, username }),
+      });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('rejects usernames that are too long or use invalid characters', async () => {
+    const tooLong = 'a'.repeat(33);
+    const res = await fetch(`${baseUrl}/api/users/username`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ walletAddress: WALLET_PREPROD_A, username: tooLong }),
+    });
+    expect(res.status).toBe(400);
+
+    const invalid = await fetch(`${baseUrl}/api/users/username`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ walletAddress: WALLET_PREPROD_A, username: 'alice<bob>' }),
+    });
+    expect(invalid.status).toBe(400);
+  });
+
+  it('maps a username to a wallet address and trims surrounding whitespace', async () => {
+    const res = await fetch(`${baseUrl}/api/users/username`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ walletAddress: WALLET_PREPROD_A, username: '  alice_demo  ', network: 'preprod' }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { accepted: boolean; username: string };
+    expect(body.accepted).toBe(true);
+    expect(body.username).toBe('alice_demo');
+
+    const user = await suite!.db.db.collection('users').findOne({ walletAddress: WALLET_PREPROD_A });
+    expect(user?.username).toBe('alice_demo');
+    expect(user?.usernameSetAt).toBeInstanceOf(Date);
+  });
+
+  it('overwrites an existing username for the same wallet', async () => {
+    await fetch(`${baseUrl}/api/users/username`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ walletAddress: WALLET_PREPROD_B, username: 'first_name', network: 'preprod' }),
+    });
+    const res = await fetch(`${baseUrl}/api/users/username`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ walletAddress: WALLET_PREPROD_B, username: 'second_name', network: 'preprod' }),
+    });
+    expect(res.status).toBe(201);
+    const user = await suite!.db.db.collection('users').findOne({ walletAddress: WALLET_PREPROD_B });
+    expect(user?.username).toBe('second_name');
+  });
+
+  it('includes usernames in the admin wallet export', async () => {
+    const res = await fetch(`${baseUrl}/api/admin/users`, {
+      headers: { authorization: 'Bearer test-admin-token' },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { users: Array<Record<string, unknown>> };
+    const preprodUser = body.users.find((u) => u.walletAddress === WALLET_PREPROD_A);
+    expect(preprodUser?.username).toBe('alice_demo');
+  });
+
   it('does not double-count a duplicate event (idempotency)', async () => {
     await postEvent(baseUrl, { idempotencyKey: 'k-dup-1', operationType: 'proof_verified', walletAddress: WALLET_PREVIEW_A, network: 'preview' });
     const before = (await getMetrics(baseUrl)).proofs.verified;

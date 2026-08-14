@@ -4,6 +4,7 @@
 //   GET  /api/health   — liveness + Mongo connectivity
 //   GET  /api/metrics  — aggregate activity (no wallet data)
 //   POST /api/events   — anonymous operation events (rate-limited)
+//   POST /api/users/username — map a wallet-chosen username to its wallet (rate-limited)
 //
 // Admin-only (bearer-token protected) surface:
 //   GET  /api/admin/users — wallet-level export, never served publicly
@@ -13,7 +14,13 @@ import { rateLimit } from 'express-rate-limit';
 import type { Db } from 'mongodb';
 
 import type { AnalyticsConfig } from '../config';
-import { buildMetrics, listWallets, recordEvent, validateEvent } from '../services/analytics';
+import {
+  buildMetrics,
+  listWallets,
+  recordEvent,
+  registerUsername,
+  validateEvent,
+} from '../services/analytics';
 
 export function analyticsRouter(db: Db, config: AnalyticsConfig): Router {
   const router = Router();
@@ -49,6 +56,25 @@ export function analyticsRouter(db: Db, config: AnalyticsConfig): Router {
     }
     const outcome = await recordEvent(db, validation.event, config);
     res.status(201).json({ accepted: true, outcome });
+  });
+
+  const usernameLimiter = rateLimit({
+    windowMs: config.rateLimitWindowMs,
+    limit: config.rateLimitMax,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many requests — slow down and retry later.' },
+  });
+
+  // Maps a wallet-chosen username to its public wallet address. The mapping is
+  // keyed by the wallet itself (the user sets it once, right after connecting).
+  router.post('/users/username', usernameLimiter, async (req, res) => {
+    const outcome = await registerUsername(db, req.body);
+    if (!outcome.ok) {
+      res.status(400).json({ error: outcome.reason });
+      return;
+    }
+    res.status(201).json({ accepted: true, username: outcome.username });
   });
 
   router.get('/admin/users', async (req, res) => {

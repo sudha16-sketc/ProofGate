@@ -11,7 +11,7 @@
   },
   "scripts": {
     "setup": "npm install && npm run compile",
-    "compile": "compact compile contracts/proofgate.compact managed/proofgate",
+    "compile": "compact compile +0.31.1 contracts/proofgate.compact managed/proofgate",
     "deploy": "tsx src/deploy.ts",
     "network": "docker compose up -d",
     "network:down": "docker compose down",

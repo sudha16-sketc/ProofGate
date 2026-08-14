@@ -8,7 +8,7 @@ import type { Db } from 'mongodb';
 
 import type { AnalyticsConfig } from '../config';
 import { insertOperation, type RecordOutcome } from '../models/Operation';
-import { applyUserActivity } from '../models/User';
+import { applyUserActivity, setWalletUsername } from '../models/User';
 import {
   OPERATION_STATUSES,
   OPERATION_TYPES,
@@ -81,6 +81,57 @@ export async function recordEvent(
     await applyUserActivity(db, event.walletAddress, event.network ?? 'unknown', event.status ?? 'success', event.operationType);
   }
   return outcome;
+}
+
+export type UsernameValidation =
+  | { ok: true; walletAddress: string; username: string; network: string }
+  | { ok: false; reason: string };
+
+/** Usernames are short, printable, and free of control characters. */
+const USERNAME_MAX_LENGTH = 32;
+const USERNAME_PATTERN = /^[A-Za-z0-9._ -]+$/;
+
+export function validateUsername(input: unknown): UsernameValidation {
+  if (typeof input !== 'object' || input === null) {
+    return { ok: false, reason: 'Body must be an object.' };
+  }
+  const body = input as Record<string, unknown>;
+
+  if (typeof body.walletAddress !== 'string' || body.walletAddress.trim().length === 0) {
+    return { ok: false, reason: 'walletAddress is required.' };
+  }
+  if (typeof body.username !== 'string') {
+    return { ok: false, reason: 'username is required.' };
+  }
+
+  const username = body.username.trim();
+  if (username.length === 0) {
+    return { ok: false, reason: 'username cannot be empty.' };
+  }
+  if (username.length > USERNAME_MAX_LENGTH) {
+    return { ok: false, reason: `username must be at most ${USERNAME_MAX_LENGTH} characters.` };
+  }
+  if (!USERNAME_PATTERN.test(username)) {
+    return {
+      ok: false,
+      reason: 'username may only contain letters, numbers, spaces, dots, underscores and hyphens.',
+    };
+  }
+
+  return {
+    ok: true,
+    walletAddress: body.walletAddress.trim(),
+    username,
+    network: typeof body.network === 'string' && body.network.trim() ? body.network.trim() : 'unknown',
+  };
+}
+
+/** Persist a wallet-chosen username mapped to its public wallet address. */
+export async function registerUsername(db: Db, input: unknown): Promise<UsernameValidation> {
+  const validation = validateUsername(input);
+  if (!validation.ok) return validation;
+  await setWalletUsername(db, validation.walletAddress, validation.username, validation.network);
+  return validation;
 }
 
 function count(db: Db, filter: Record<string, unknown>): Promise<number> {
@@ -156,6 +207,7 @@ export async function listWallets(db: Db, config: AnalyticsConfig, limit = 500):
   for await (const u of cursor) {
     rows.push({
       walletAddress: u.walletAddress,
+      username: typeof u.username === 'string' ? u.username : undefined,
       firstSeenAt: u.firstSeenAt.toISOString(),
       lastSeenAt: u.lastSeenAt.toISOString(),
       network: u.firstSeenNetwork,

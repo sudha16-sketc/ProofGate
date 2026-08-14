@@ -8,8 +8,7 @@ import { MetricsPanel } from '../analytics/MetricsPanel';
 import { HeroSequence, type HeroSequenceHandle } from '../visual/HeroSequence';
 import { ProofPipeline, type PipelineStage } from '../visual/ProofPipeline';
 import { Button } from '../ui/Button';
-import { StatusBadge } from '../ui/Badge';
-import { IconArrowDown, IconCheck, IconLock, IconWallet, IconX } from '../icons';
+import { IconArrowDown, IconCheck, IconLock, IconShield, IconWallet, IconX } from '../icons';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -65,6 +64,18 @@ export function ConnectView() {
   const phase2Ref = useRef<HTMLDivElement>(null);
   const phase3Ref = useRef<HTMLDivElement>(null);
   const scrollHintRef = useRef<HTMLDivElement>(null);
+  const heroScrollTrigger = useRef<ScrollTrigger | null>(null);
+
+  // Nav links scrub the pinned timeline to a specific story beat. Without the
+  // pin (reduced motion) they fall back to scrolling the hero into view.
+  const jumpTo = (progress: number) => {
+    const st = heroScrollTrigger.current;
+    if (st && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      st.scroll(st.start + (st.end - st.start) * progress);
+    } else {
+      heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Master scroll timeline: pins the hero and scrubs frames + copy together.
   useLayoutEffect(() => {
@@ -72,7 +83,7 @@ export function ConnectView() {
     if (!hero) return;
 
     // Reduced-motion users get a static hero (frame 001 + first message) and
-    // the sections flow normally � no forced scrubbing or pinning.
+    // the sections flow normally — no forced scrubbing or pinning.
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const proofProgress = { stage: 0 };
@@ -93,7 +104,7 @@ export function ConnectView() {
     });
 
     // The 192 frames are split into contiguous, non-overlapping story ranges:
-    // 001�043 hero, 044�094 privacy, 095�145 proof, 146�192 verified.
+    // 001–043 hero, 044–094 privacy, 095–145 proof, 146–192 verified.
     // Copy never overlaps another phase; each range includes an enter, hold, and exit.
     timeline
       .to(scrollHintRef.current, { autoAlpha: 0, y: 12, duration: 0.055, ease: 'power1.out' }, 0.03)
@@ -136,6 +147,7 @@ export function ConnectView() {
 
     // Force the spacer to be measured now; without following content this is
     // what supplies the scroll runway for the pinned sequence.
+    heroScrollTrigger.current = timeline.scrollTrigger ?? null;
     ScrollTrigger.refresh();
 
     // Re-measure the pin distance once late-loading assets are in.
@@ -158,9 +170,41 @@ export function ConnectView() {
         <div className="hero-scrim" aria-hidden="true" />
 
         <div className="hero-topline">
-          <StatusBadge tone={connecting ? 'dim' : 'accent'}>
-            {connecting ? 'Connecting�' : `Powered by Midnight � ${NETWORK}`}
-          </StatusBadge>
+          <a
+            className="hero-nav__brand"
+            href="#"
+            onClick={(event) => {
+              event.preventDefault();
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          >
+            <span className="hero-nav__mark" aria-hidden="true">
+              <IconShield size={15} />
+            </span>
+            <span className="hero-nav__word">ProofGate</span>
+          </a>
+
+          <nav className="hero-nav__links" aria-label="Primary">
+            <button type="button" onClick={() => jumpTo(0.34)}>
+              Proof flow
+            </button>
+            <button type="button" onClick={() => jumpTo(0.61)}>
+              Metrics
+            </button>
+            <button type="button" onClick={() => jumpTo(0.87)}>
+              Why ProofGate
+            </button>
+          </nav>
+
+          <div className="hero-nav__actions">
+            <span className="hero-nav__net">
+              <span className="hero-nav__dot" aria-hidden="true" />
+              Midnight · {NETWORK}
+            </span>
+            <Button variant="primary" size="md" onClick={connect} loading={connecting}>
+              {connecting ? 'Connecting…' : 'Connect wallet'}
+            </Button>
+          </div>
         </div>
 
         <div className="hero-phases">
@@ -169,12 +213,12 @@ export function ConnectView() {
               Prove eligibility. <span className="accent">Not identity.</span>
             </h1>
             <p className="lead">
-              ProofGate lets regulated Web3 applications verify eligibility without exposing the user�s sensitive
+              ProofGate lets regulated Web3 applications verify eligibility without exposing the user’s sensitive
               identity or compliance data.
             </p>
             <div className="hero-actions">
               <Button variant="primary" size="lg" onClick={connect} loading={connecting} icon={<IconWallet size={17} />}>
-                {connecting ? 'Connecting�' : `Connect wallet (${network})`}
+                {connecting ? 'Connecting…' : `Connect wallet (${network})`}
               </Button>
             </div>
             {state.status === 'error' && (
@@ -202,17 +246,18 @@ export function ConnectView() {
           </div>
 
           <div
-            className="hero-phase hero-phase--proof"
+            className="hero-phase--proof"
             ref={phase2Ref}
             style={{ opacity: 0, visibility: 'hidden' }}
           >
-            <span className="hero-phase__kicker">02 / Proof network activity</span>
-            <h2>Prove eligibility without revealing identity.</h2>
-            <p className="lead">
-              A zero-knowledge proof is generated in your wallet and verified on Midnight — the verifier learns only
-              that you qualify.
-            </p>
             <MetricsPanel state={metricsState} onRetry={refreshMetrics} />
+            <div className="hero-phase--proof-text">
+              <h2>Prove eligibility without revealing identity.</h2>
+              <p className="lead">
+                A zero-knowledge proof is generated in your wallet and verified on Midnight — the verifier learns only
+                that you qualify.
+              </p>
+            </div>
           </div>
 
           <div

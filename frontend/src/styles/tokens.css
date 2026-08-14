@@ -1,43 +1,54 @@
 /* =============================================================================
    ProofGate — Design tokens
-   "Midnight cryptography laboratory meets premium financial infrastructure."
+   "Privacy infrastructure for serious applications."
+   One system: deep neutral navy surfaces, white editorial type, teal as the
+   primary privacy/verification accent, lavender reserved for technical detail.
    ========================================================================== */
 
 :root {
   /* Surfaces — deep neutral navy, never flat black */
-  --bg-0: #06080f;
-  --bg-1: #0a0d17;
-  --bg-2: #0e1220;
-  --bg-3: #131828;
-  --bg-4: #1a2034;
+  --bg-0: #05070b;
+  --bg-1: #080b12;
+  --bg-2: #0b1018;
+  --bg-3: #101624;
+  --bg-4: #161d2f;
 
   /* Elevation */
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
   --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
   --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.4);
-  --glow-accent: 0 0 0 1px rgba(125, 140, 255, 0.35), 0 0 24px -6px rgba(125, 140, 255, 0.55);
-  --glow-proof: 0 0 0 1px rgba(95, 224, 192, 0.35), 0 0 24px -6px rgba(95, 224, 192, 0.5);
+  --glow-accent: 0 0 0 1px rgba(98, 230, 212, 0.3), 0 0 24px -6px rgba(98, 230, 212, 0.45);
+  --glow-proof: 0 0 0 1px rgba(95, 224, 192, 0.32), 0 0 24px -6px rgba(95, 224, 192, 0.45);
 
-  /* Borders */
-  --border-1: rgba(150, 163, 205, 0.12);
-  --border-2: rgba(150, 163, 205, 0.22);
-  --border-3: rgba(150, 163, 205, 0.36);
+  /* Borders — neutral white-alpha, never colored */
+  --border-1: rgba(255, 255, 255, 0.08);
+  --border-2: rgba(255, 255, 255, 0.14);
+  --border-3: rgba(255, 255, 255, 0.24);
 
   /* Text */
-  --text-1: #e8ecf6;
-  --text-2: #a4adc9;
-  --text-3: #6d7694;
-  --text-4: #4b5370;
+  --text-1: #f5f7fa;
+  --text-2: #a9b2c9;
+  --text-3: #7a8398;
+  --text-4: #4e566b;
 
-  /* Accent — single primary cryptographic accent (indigo) */
-  --accent: #7d8cff;
-  --accent-strong: #a3aeff;
-  --accent-soft: rgba(125, 140, 255, 0.12);
-  --accent-softer: rgba(125, 140, 255, 0.06);
-  --accent-border: rgba(125, 140, 255, 0.45);
+  /* Primary privacy accent — teal. Verification, privacy states, success,
+     active indicators. Used as THE interactive accent across the product. */
+  --accent: #62e6d4;
+  --accent-strong: #7df0df;
+  --accent-soft: rgba(98, 230, 212, 0.12);
+  --accent-softer: rgba(98, 230, 212, 0.06);
+  --accent-border: rgba(98, 230, 212, 0.42);
 
-  /* Proof — teal, reserved for zero-knowledge / eligibility signals */
-  --proof: #5fe0c0;
+  /* Secondary technical accent — lavender. Cryptography, technical detail,
+     secondary highlights. Used sparingly; never as a large surface. */
+  --accent-2: #8fa7ff;
+  --accent-2-strong: #aabcf5;
+  --accent-2-soft: rgba(143, 167, 255, 0.12);
+  --accent-2-softer: rgba(143, 167, 255, 0.06);
+  --accent-2-border: rgba(143, 167, 255, 0.4);
+
+  /* Proof / eligibility — teal family (slightly deeper than --accent) */
+  --proof: #4fd6b4;
   --proof-soft: rgba(95, 224, 192, 0.12);
   --proof-border: rgba(95, 224, 192, 0.4);
 
@@ -60,8 +71,8 @@
     'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', 'IBM Plex Mono', 'Roboto Mono', Menlo, Consolas,
     monospace;
 
-  /* Type scale (fluid-ish) */
-  --fs-display: clamp(2.2rem, 4.5vw, 3.4rem);
+  /* Type scale (fluid-ish) — one scale, used consistently */
+  --fs-display: clamp(2.3rem, 4.6vw, 3.6rem);
   --fs-h1: clamp(1.6rem, 2.6vw, 2.1rem);
   --fs-h2: 1.35rem;
   --fs-h3: 1.05rem;
@@ -83,11 +94,11 @@
   --sp-8: 40px;
   --sp-9: 56px;
 
-  /* Radii */
+  /* Radii — restrained, mostly small; pill reserved for chips/buttons */
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 14px;
-  --r-xl: 20px;
+  --r-xl: 18px;
   --r-pill: 999px;
 
   /* Layout */

@@ -78,6 +78,7 @@ export type MetricsSnapshot = {
 /** A row from the admin-only wallet export. */
 export type WalletRow = {
   walletAddress: string;
+  username?: string;
   firstSeenAt: string;
   lastSeenAt: string;
   network: string;

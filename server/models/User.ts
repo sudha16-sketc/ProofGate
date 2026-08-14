@@ -11,6 +11,7 @@ import type { OperationStatus, OperationType } from './types';
 export type UserDocument = {
   walletAddress: string;
   username?: string;
+  usernameSetAt?: Date;
   firstSeenAt: Date;
   lastSeenAt: Date;
   firstSeenNetwork: string;
@@ -60,6 +61,36 @@ export async function applyUserActivity(
       $inc: {
         totalOperations: 1,
         ...(status === 'success' ? { successful: 1 } : { failed: 1 }),
+      },
+    },
+    { upsert: true },
+  );
+}
+
+/**
+ * Set (or overwrite) the display name a wallet chose for itself.
+ *
+ * Maps a username to its public wallet address. Creates the user document if it
+ * does not exist yet (e.g. the wallet connected without reporting any event).
+ */
+export async function setWalletUsername(
+  db: Db,
+  walletAddress: string,
+  username: string,
+  network: string,
+): Promise<void> {
+  const now = new Date();
+  await db.collection(USERS).updateOne(
+    { walletAddress },
+    {
+      $set: { username, usernameSetAt: now, lastSeenAt: now },
+      $setOnInsert: {
+        walletAddress,
+        firstSeenAt: now,
+        firstSeenNetwork: network,
+        totalOperations: 0,
+        successful: 0,
+        failed: 0,
       },
     },
     { upsert: true },

@@ -26,8 +26,6 @@ export type HeroSequenceProps = {
   basePath?: string;
 };
 
-const pad = (n: number) => String(n).padStart(3, '0');
-
 export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(function HeroSequence(
   { frameCount = 192, batchSize = 10, basePath = '/heroframes' },
   ref,
@@ -202,7 +200,7 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
                 resolve();
               };
 
-              image.src = `${basePath}/frame-${pad(i + 1)}.jpg`;
+              image.src = `${basePath}/frame_${String(i + 1).padStart(4, '0')}.jpg`;
             }),
           );
         }

@@ -9,6 +9,13 @@
 }
 
 @media (max-width: 900px) {
+  .hero-topline {
+    padding: 16px 5vw;
+  }
+  .hero-nav__net {
+    display: none;
+  }
+
   /* Collapse to top-bar + bottom-nav layout */
   .pg-app {
     display: block;

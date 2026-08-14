@@ -18,8 +18,8 @@ body {
   font: var(--fs-body) / var(--lh-body) var(--font-sans);
   color: var(--text-1);
   background:
-    radial-gradient(1100px 520px at 75% -10%, rgba(125, 140, 255, 0.09), transparent 60%),
-    radial-gradient(900px 480px at -10% 10%, rgba(95, 224, 192, 0.05), transparent 55%),
+    radial-gradient(1100px 520px at 75% -10%, rgba(143, 167, 255, 0.07), transparent 60%),
+    radial-gradient(900px 480px at -10% 10%, rgba(98, 230, 212, 0.045), transparent 55%),
     var(--bg-0);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
@@ -50,8 +50,8 @@ h3,
 h4 {
   color: var(--text-1);
   line-height: var(--lh-tight);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 650;
+  letter-spacing: -0.022em;
 }
 
 a {
@@ -245,7 +245,7 @@ input::placeholder {
 }
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'><path d='M1 1l5 5 5-5' stroke='%237d8cff' stroke-width='1.5' stroke-linecap='round'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'><path d='M1 1l5 5 5-5' stroke='%2362e6d4' stroke-width='1.5' stroke-linecap='round'/></svg>");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 34px;
@@ -264,6 +264,12 @@ select {
 .field .hint {
   font-size: var(--fs-caption);
   color: var(--text-4);
+}
+
+/* Inline error text */
+.error {
+  font-size: var(--fs-caption);
+  color: var(--err);
 }
 
 /* Scrollbar */
