@@ -83,7 +83,7 @@ the ProofGate instance domain (cross-contract replay protection).
 https://github.com/user-attachments/assets/778dc963-53e5-4c0f-82d2-6fdde7390bf0
 
 ## Demo link 
-https://proof-gate-one.vercel.app/
+https://proof-gate-tau.vercel.app/
 ## Link to the product X profile
 https://x.com/SudhakarSu27323/status/2087513953098498207?s=20
 
