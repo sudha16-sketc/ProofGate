@@ -108,14 +108,18 @@ const PRESET = NETWORK_PRESETS[NETWORK];
 export const INDEXER_URL = import.meta.env.VITE_INDEXER_URL?.trim() || PRESET.indexer;
 
 /**
- * Proof-server endpoint, when one is explicitly configured.
+ * Proof-server endpoint used by `httpClientProofProvider`.
  *
- * Empty by default: the browser path proves IN-WALLET (no proof server). Set
- * VITE_PROOF_SERVER_URL to a locally-run official `midnightntwrk/proof-server`
- * instance (e.g. `http://127.0.0.1:6300`) or any compatible endpoint to prove
- * via `httpClientProofProvider` instead.
+ * Defaults to the SAME ORIGIN: in the single-server deployment the Express
+ * backend relays /check and /prove to the Midnight proof-server sidecar, and
+ * in dev the Vite proxy forwards them to the local `midnightntwrk/proof-server`
+ * (http://127.0.0.1:6300). Override with VITE_PROOF_SERVER_URL to use any other
+ * compatible endpoint instead.
  */
-export const PROOF_SERVER_URL = import.meta.env.VITE_PROOF_SERVER_URL?.trim() || PRESET.proofServer;
+export const PROOF_SERVER_URL =
+  import.meta.env.VITE_PROOF_SERVER_URL?.trim() ||
+  PRESET.proofServer ||
+  (typeof window !== 'undefined' ? window.location.origin : '');
 
 /** Derive the indexer's GraphQL WebSocket URL from its HTTP URL. */
 export function indexerWsUrl(httpUrl: string): string {

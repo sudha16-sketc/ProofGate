@@ -10,9 +10,17 @@
 // after a transient failure. The SDK exposes serializeState() and restore()
 // on each child wallet class; wallet.ts is the glue that uses them, and this
 // file is the on-disk format underneath.
+//
+// State is scoped per wallet identity (a non-secret hash of the wallet seed),
+// NOT just per network. Serialized child-wallet state embeds the wallet's own
+// note/coin keys, so restoring one wallet's state under another wallet's seed
+// corrupts the coin view and breaks proving (dust spend assertions fail). Each
+// seed therefore gets its own state directory:
+//   .midnight-wallet-state/<network>/<walletId>/<kind>.json
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 
 import type { NetworkId } from './network';
 
@@ -30,10 +38,12 @@ export interface PersistedWalletState {
 
 export interface FsOptions {
   cwd?: string;
+  /** Per-wallet state scope. When omitted, the legacy flat (network-only) layout is used. */
+  walletId?: string;
 }
 
 function networkDir(network: NetworkId, opts: FsOptions = {}): string {
-  return path.join(opts.cwd ?? process.cwd(), WALLET_STATE_DIR, network);
+  return path.join(opts.cwd ?? process.cwd(), WALLET_STATE_DIR, network, opts.walletId ?? '');
 }
 
 function statePath(network: NetworkId, kind: ChildKind, opts: FsOptions = {}): string {
@@ -92,4 +102,14 @@ export function saveWalletState(
 export function clearWalletState(network: NetworkId, opts: FsOptions = {}): void {
   const dir = networkDir(network, opts);
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/**
+ * Derive a stable, non-secret wallet identity from a seed (or mnemonic).
+ * Scopes the persisted child-wallet state so different seeds never restore
+ * each other's note/coin state. SHA-256 is one-way, so the directory name
+ * leaks nothing about the seed.
+ */
+export function walletIdFromSeed(seed: string): string {
+  return createHash('sha256').update(seed, 'utf-8').digest('hex').slice(0, 16);
 }

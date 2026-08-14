@@ -11,6 +11,7 @@ import type { Db } from 'mongodb';
 import type { AnalyticsConfig } from './config';
 import { ensureOperationIndexes } from './models/Operation';
 import { ensureUserIndexes } from './models/User';
+import { createProofRelayRouter } from './proof-relay';
 import { analyticsRouter } from './routes/analytics';
 
 export async function ensureAnalyticsIndexes(db: Db): Promise<void> {
@@ -28,6 +29,9 @@ export function createApp({ db, config, staticDir }: CreateAppOptions): Express 
   const app = express();
 
   app.use(cors({ origin: config.corsOrigin }));
+  // Stream /check and /prove to the proof-server sidecar. Must come before the
+  // JSON body parser so raw octet-stream proving payloads pass through untouched.
+  app.use(createProofRelayRouter(config));
   app.use(express.json({ limit: '32kb' }));
 
   app.use('/api', analyticsRouter(db, config));

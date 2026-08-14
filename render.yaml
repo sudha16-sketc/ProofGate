@@ -1,0 +1,50 @@
+# ProofGate — Render Blueprint for the two independently-deployed servers.
+#
+#   proofgate-proof-server — Midnight ZK proof server (VITE_PROOF_SERVER_URL)
+#   proofgate-api          — analytics/API server (VITE_API_URL)
+#
+# The frontend is built and hosted separately (static Vite build of
+# frontend/dist) and points at these two services via frontend/.env.local.
+#
+# Blueprint usage:
+#   1. Create a new Blueprint on dashboard.render.com and paste this file's
+#      contents (or push it and use "Blueprint" from the repo).
+#   2. Fill the sync:false secrets (MONGODB_URI, ADMIN_API_TOKEN, CORS_ORIGIN,
+#      PROOF_SERVER_URL) in the dashboard.
+#   3. Copy each service's *.onrender.com URL into frontend/.env.local as
+#      VITE_PROOF_SERVER_URL / VITE_API_URL, then rebuild the frontend.
+
+services:
+  # --- Midnight proof server (ZK proving backend) --------------------------
+  - type: web
+    name: proofgate-proof-server
+    runtime: docker
+    plan: starter
+    dockerfilePath: proof-server/Dockerfile
+    # GET / returns 200 on the official image.
+    healthCheckPath: /
+    envVars:
+      - key: RUST_LOG
+        value: info
+
+  # --- ProofGate analytics/API server -------------------------------------
+  - type: web
+    name: proofgate-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: server/Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: ADMIN_API_TOKEN
+        sync: false
+      # Allowed browser origin for /api and the /check /prove relay. Use the
+      # exact origin of the deployed frontend (e.g. https://proofgate.vercel.app).
+      - key: CORS_ORIGIN
+        sync: false
+      # Public URL of proofgate-proof-server above, used by the /check /prove
+      # relay when the browser is pointed at this service instead of the proof
+      # server directly.
+      - key: PROOF_SERVER_URL
+        sync: false

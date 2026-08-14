@@ -19,6 +19,10 @@ export default defineConfig({
     // built frontend and the /api routes from the same process.
     proxy: {
       '/api': 'http://127.0.0.1:8787',
+      // The app proves through the same origin; in dev the Vite server relays
+      // proving payloads to the local `docker compose` proof-server.
+      '/check': 'http://127.0.0.1:6300',
+      '/prove': 'http://127.0.0.1:6300',
     },
   },
   resolve: {

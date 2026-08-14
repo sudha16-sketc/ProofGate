@@ -32,6 +32,7 @@ import {
   CHILD_KINDS,
   loadWalletState,
   saveWalletState,
+  walletIdFromSeed,
   type ChildKind,
   type PersistedWalletState,
 } from './wallet-state';
@@ -42,6 +43,7 @@ export {
   loadWalletState,
   saveWalletState,
   clearWalletState,
+  walletIdFromSeed,
   WALLET_STATE_DIR,
   WALLET_STATE_VERSION,
 } from './wallet-state';
@@ -69,7 +71,7 @@ export function configureNetworkId(networkId: NetworkId): void {
   }
 }
 
-function deriveKeys(seed: string) {
+export function deriveKeys(seed: string) {
   const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
   if (hdWallet.type !== 'seedOk') throw new Error('Invalid seed');
   const result = hdWallet.hdWallet
@@ -87,6 +89,8 @@ export interface WalletContext {
   dustSecretKey: ReturnType<typeof ledger.DustSecretKey.fromSeed>;
   unshieldedKeystore: ReturnType<typeof createKeystore>;
   restored: { shielded: boolean; unshielded: boolean; dust: boolean };
+  /** Per-wallet state scope (non-secret hash of the seed). */
+  walletId: string;
 }
 
 export interface CreateWalletOptions {
@@ -121,10 +125,11 @@ export async function createWallet(opts: CreateWalletOptions): Promise<WalletCon
   const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
   const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
   const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], networkId);
+  const walletId = walletIdFromSeed(opts.seed);
 
   const saved: PersistedWalletState = opts.restore === false
     ? {}
-    : loadWalletState(opts.network, { cwd: opts.cwd });
+    : loadWalletState(opts.network, { cwd: opts.cwd, walletId });
 
   const restored = { shielded: false, unshielded: false, dust: false };
 
@@ -185,7 +190,7 @@ export async function createWallet(opts: CreateWalletOptions): Promise<WalletCon
 
   await wallet.start(shieldedSecretKeys, dustSecretKey);
 
-  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore, restored };
+  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore, restored, walletId };
 }
 
 /**
@@ -215,5 +220,5 @@ export async function persistWalletState(
     }
   }
 
-  saveWalletState(network, next, { cwd });
+  saveWalletState(network, next, { cwd, walletId: ctx.walletId });
 }

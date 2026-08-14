@@ -38,6 +38,11 @@ export type AnalyticsConfig = {
   activeWindowDays: number;
   /** Allowed CORS origin for the browser client (default: any localhost dev). */
   corsOrigin: string;
+  /**
+   * Base URL of the Midnight proof-server sidecar that the /check and /prove
+   * relay endpoints stream to (default: the same-container localhost:6300).
+   */
+  proofServerUrl: string;
   /** Rate-limit window (milliseconds) for event ingestion. */
   rateLimitWindowMs: number;
   /** Max events per window per IP. */
@@ -54,6 +59,7 @@ export function loadConfig(): AnalyticsConfig {
     preprodTargetCount: int('PREPROD_TARGET_COUNT', 50),
     activeWindowDays: int('ANALYTICS_ACTIVE_DAYS', 30),
     corsOrigin: env('CORS_ORIGIN') ?? '*',
+    proofServerUrl: env('PROOF_SERVER_URL') ?? 'http://127.0.0.1:6300',
     rateLimitWindowMs: int('ANALYTICS_RATE_LIMIT_MS', 60_000),
     rateLimitMax: int('ANALYTICS_RATE_LIMIT_MAX', 120),
   };
