@@ -914,6 +914,15 @@
   border-width: 3px;
 }
 
+/* ── Route suspense fallback ──────────────────────────────────────────────── */
+
+.route-suspense {
+  display: grid;
+  place-items: center;
+  padding: 3rem 1rem;
+  color: var(--text-2, inherit);
+}
+
 /* ── App shell ───────────────────────────────────────────────────────────── */
 
 .pg-app {

@@ -7,7 +7,16 @@
 //
 // Public imperative API (via ref):
 //   setProgress(progress: number) — clamp 0..1, maps 0 → frame 001, 1 → frame N
-//   isReady(): boolean             — true once every batch has finished loading
+//   isReady(): boolean             — true once the first batch is playable
+//                                    (playback starts early; later frames
+//                                    stream in and render as they arrive)
+//
+// Performance:
+//   - devicePixelRatio is capped at 1.5 (the 1280×720 frames are the visual
+//     limit anyway; a 2× backing store on a 4K screen is pure waste).
+//   - `isReady()` flips after the FIRST batch so the scroll timeline never
+//     waits for all 192 frames (~11 MB) to download.
+//   - canvas smoothing settings are applied once, not per frame.
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import gsap from 'gsap';
@@ -41,9 +50,11 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
   const pendingProgressRef = useRef(0);
   const reducedMotionRef = useRef(false);
   const canvasSizeRef = useRef({ width: 0, height: 0 });
+  const playReadyRef = useRef(false);
 
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [playReady, setPlayReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const renderFrame = (frameIndex: number) => {
@@ -87,8 +98,6 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
     const drawX = (width - drawWidth) / 2;
     const drawY = (height - drawHeight) / 2;
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'medium';
     ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);
   };
 
@@ -114,9 +123,9 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
     ref,
     () => ({
       setProgress,
-      isReady: () => isLoaded,
+      isReady: () => playReadyRef.current,
     }),
-    [isLoaded],
+    [],
   );
 
   // Track the reduced-motion preference live.
@@ -138,7 +147,9 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Cap at 1.5 — the source frames are 1280×720, so extra backing-store
+    // pixels buy nothing but memory and fill-rate cost.
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
@@ -150,6 +161,8 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'medium';
 
     // Force a redraw at the current master progress.
     currentFrameRef.current = -1;
@@ -206,15 +219,28 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
         }
 
         await Promise.all(batchPromises);
-        if (!cancelled) {
-          setLoadingProgress(Math.round((end / frameCount) * 100));
+        if (cancelled) return;
+
+        // The first batch is enough to start playback — expose the loaded
+        // frames (later slots still null) and release the loader immediately,
+        // then keep streaming the remaining batches underneath.
+        if (start === 0) {
+          framesRef.current = loadedFrames;
+          currentFrameRef.current = -1;
+          setupCanvas();
+          renderFrame(0);
+          playReadyRef.current = true;
+          setPlayReady(true);
         }
+        setLoadingProgress(Math.round((end / frameCount) * 100));
       }
 
       if (cancelled) return;
 
       if (loadedFrames.every((frame) => frame === null)) {
         setError('No frames could be loaded.');
+        playReadyRef.current = true;
+        setPlayReady(true);
         setIsLoaded(true);
         return;
       }
@@ -313,7 +339,7 @@ export const HeroSequence = forwardRef<HeroSequenceHandle, HeroSequenceProps>(fu
         </div>
       )}
 
-      {!isLoaded && !error && (
+      {!playReady && !error && (
         <div className="hero-sequence__loader" role="status" aria-live="polite">
           <div className="hero-sequence__loader-inner">
             <span className="hero-sequence__loader-label">Preparing the experience…</span>

@@ -47,6 +47,10 @@ export type AnalyticsConfig = {
   rateLimitWindowMs: number;
   /** Max events per window per IP. */
   rateLimitMax: number;
+  /** In-memory TTL for the cached /api/metrics snapshot (ms). */
+  metricsCacheTtlMs: number;
+  /** Max events accepted per /api/events/batch request. */
+  analyticsBatchMax: number;
 };
 
 export function loadConfig(): AnalyticsConfig {
@@ -62,5 +66,7 @@ export function loadConfig(): AnalyticsConfig {
     proofServerUrl: env('PROOF_SERVER_URL') ?? 'http://127.0.0.1:6300',
     rateLimitWindowMs: int('ANALYTICS_RATE_LIMIT_MS', 60_000),
     rateLimitMax: int('ANALYTICS_RATE_LIMIT_MAX', 120),
+    metricsCacheTtlMs: int('ANALYTICS_METRICS_CACHE_TTL_MS', 15_000),
+    analyticsBatchMax: int('ANALYTICS_BATCH_MAX', 50),
   };
 }

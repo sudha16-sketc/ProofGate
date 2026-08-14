@@ -10,6 +10,7 @@ export type ErrorKind =
   | 'wallet-not-connected'
   | 'contract-address-missing'
   | 'proof-generation'
+  | 'proof-server-unavailable'
   | 'balancing'
   | 'insufficient-tnight'
   | 'insufficient-tdust'
@@ -23,6 +24,7 @@ const MSG: Record<ErrorKind, string> = {
   'wallet-not-connected': 'Wallet is not connected. Connect your Midnight wallet and try again.',
   'contract-address-missing': 'Contract address is missing. Deploy a contract or set VITE_CONTRACT_ADDRESS.',
   'proof-generation': 'Proof generation failed. Check that the ZK artifacts are served (keys/ and zkir/) and the wallet is unlocked.',
+  'proof-server-unavailable': 'The proof service is unreachable. It may be starting up — wait a moment and retry the operation.',
   balancing: 'Transaction balancing failed. Check tNIGHT / tDUST balances and the wallet connection.',
   'insufficient-tnight': 'Insufficient tNIGHT. Fund the wallet via the faucet and try again.',
   'insufficient-tdust': 'Insufficient tDUST. Generate tDUST in the wallet and try again.',
@@ -42,7 +44,11 @@ const RULES: ReadonlyArray<{ kind: ErrorKind; pattern: RegExp }> = [
   { kind: 'owner-only', pattern: /caller\s+is\s+not\s+the\s+owner|failed\s+assert:.*owner|not\s+the\s+owner/i },
   { kind: 'insufficient-tdust', pattern: /not\s+enough\s+dust|insufficient\s+dust|dust\s+shortage/i },
   { kind: 'insufficient-tnight', pattern: /not\s+enough\s+night|insufficient\s+night|insufficient\s+funds|insufficient\s+tnight/i },
-  { kind: 'proof-generation', pattern: /proof\s+generat|proving\s+failed|failed\s+to\s+prove|proof\s+server/i },
+  { kind: 'proof-generation', pattern: /proof\s+generat|proving\s+failed|failed\s+to\s+prove|proof\s+server|circuit\s*error/i },
+  {
+    kind: 'proof-server-unavailable',
+    pattern: /failed\s+to\s+fetch|fetch\s+failed|load\s+failed|econnrefused|enotfound|networkerror|socket\s+hang\s+up|502|503|504|upstream\s+closed/i,
+  },
   { kind: 'balancing', pattern: /balanc|overspend|unbound|fee/i },
   { kind: 'indexer', pattern: /indexer|graphql|subscription|network.*error/i },
   { kind: 'deployment', pattern: /deploy/i },
@@ -68,4 +74,34 @@ export function friendlyError(err: unknown): string {
   const { kind, message, detail } = classifyError(err);
   if (kind === 'unknown') return message;
   return detail && detail !== message ? `${message} (${detail})` : message;
+}
+
+/**
+ * Coarse lifecycle stage for a failed operation, reported in the analytics
+ * `stage` field. Always a fixed safe token — never raw error text.
+ */
+export function classifyStage(kind: ErrorKind): string {
+  switch (kind) {
+    case 'network-id':
+    case 'contract-address-missing':
+      return 'CONFIGURATION';
+    case 'wallet-not-connected':
+      return 'WALLET_ERROR';
+    case 'proof-generation':
+      return 'PROOF_GENERATION_FAILED';
+    case 'proof-server-unavailable':
+      return 'PROOF_SERVER_UNAVAILABLE';
+    case 'balancing':
+    case 'insufficient-tnight':
+    case 'insufficient-tdust':
+      return 'TRANSACTION_FAILED';
+    case 'indexer':
+      return 'INDEXER_UNAVAILABLE';
+    case 'deployment':
+      return 'DEPLOYMENT_FAILED';
+    case 'owner-only':
+      return 'AUTHORIZATION';
+    default:
+      return 'UNKNOWN';
+  }
 }

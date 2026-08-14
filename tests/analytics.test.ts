@@ -72,6 +72,18 @@ async function getMetrics(baseUrl: string): Promise<MetricsSnapshot> {
   return (await res.json()) as MetricsSnapshot;
 }
 
+async function postBatch(
+  baseUrl: string,
+  events: Record<string, unknown>[],
+): Promise<{ status: number; json: unknown }> {
+  const res = await fetch(`${baseUrl}/api/events/batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ events }),
+  });
+  return { status: res.status, json: await res.json().catch(() => null) };
+}
+
 describeSuite('analytics store & API', () => {
   const baseUrl = suite!.baseUrl;
 
@@ -248,6 +260,76 @@ describeSuite('analytics store & API', () => {
     expect(dup.status).toBe(201);
     expect(dup.json).toMatchObject({ accepted: true, outcome: 'duplicate' });
     expect(after).toBe(before);
+  });
+
+  it('records a whole action as one batched request', async () => {
+    const res = await postBatch(baseUrl, [
+      { idempotencyKey: 'k-batch-1', operationType: 'permit_created', walletAddress: WALLET_PREVIEW_A, network: 'preview' },
+      { idempotencyKey: 'k-batch-2', operationType: 'proof_generated', walletAddress: WALLET_PREVIEW_A, network: 'preview' },
+      { idempotencyKey: 'k-batch-3', operationType: 'proof_verified', walletAddress: WALLET_PREVIEW_A, network: 'preview' },
+    ]);
+    expect(res.status).toBe(201);
+    expect(res.json).toMatchObject({ accepted: true, count: 3 });
+
+    const m = await getMetrics(baseUrl);
+    expect(m.permits.created).toBeGreaterThanOrEqual(1);
+    expect(m.proofs.generated).toBeGreaterThanOrEqual(1);
+    expect(m.proofs.verified).toBeGreaterThanOrEqual(1);
+  });
+
+  it('dedupes repeated events inside a single batch', async () => {
+    const before = (await getMetrics(baseUrl)).operations.total;
+    const res = await postBatch(baseUrl, [
+      { idempotencyKey: 'k-batch-dup', operationType: 'permit_consumed', walletAddress: WALLET_PREVIEW_A, network: 'preview' },
+      { idempotencyKey: 'k-batch-dup', operationType: 'permit_consumed', walletAddress: WALLET_PREVIEW_A, network: 'preview' },
+    ]);
+    expect(res.status).toBe(201);
+    const body = res.json as { outcomes: Array<{ outcome: string }> };
+    expect(body.outcomes.map((o) => o.outcome)).toEqual(['inserted', 'duplicate']);
+    expect((await getMetrics(baseUrl)).operations.total).toBe(before + 1);
+  });
+
+  it('rejects a batch containing an invalid event', async () => {
+    const res = await postBatch(baseUrl, [
+      { idempotencyKey: 'k-batch-bad', operationType: 'mined_bitcoin' },
+      { idempotencyKey: 'k-batch-ok', operationType: 'wallet_connected', walletAddress: WALLET_PREVIEW_A, network: 'preview' },
+    ]);
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts an empty batch', async () => {
+    const res = await postBatch(baseUrl, []);
+    expect(res.status).toBe(201);
+    expect(res.json).toMatchObject({ accepted: true, count: 0 });
+  });
+
+  it('rejects a batch above the configured size cap', async () => {
+    const events = Array.from({ length: 51 }, (_, i) => ({
+      idempotencyKey: `k-cap-${i}`,
+      operationType: 'wallet_connected',
+      walletAddress: WALLET_PREVIEW_A,
+      network: 'preview',
+    }));
+    const res = await postBatch(baseUrl, events);
+    expect(res.status).toBe(400);
+  });
+
+  it('persists the coarse failure stage on batched failed events', async () => {
+    const res = await postBatch(baseUrl, [
+      {
+        idempotencyKey: 'k-batch-stage',
+        operationType: 'operation_failed',
+        status: 'failed',
+        walletAddress: WALLET_PREVIEW_A,
+        network: 'preview',
+        errorCode: 'proof-server-unavailable',
+        stage: 'PROOF_SERVER_UNAVAILABLE',
+      },
+    ]);
+    expect(res.status).toBe(201);
+    const doc = await suite!.db.db.collection('operations').findOne({ idempotencyKey: 'k-batch-stage' });
+    expect(doc?.stage).toBe('PROOF_SERVER_UNAVAILABLE');
+    expect(doc?.errorCode).toBe('proof-server-unavailable');
   });
 
   it('does not double-count users for a repeated wallet', async () => {

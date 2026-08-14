@@ -7,7 +7,7 @@
 import type { Db } from 'mongodb';
 
 import type { AnalyticsConfig } from '../config';
-import { insertOperation, type RecordOutcome } from '../models/Operation';
+import { insertOperation, insertOperations, type RecordOutcome } from '../models/Operation';
 import { applyUserActivity, setWalletUsername } from '../models/User';
 import {
   OPERATION_STATUSES,
@@ -48,6 +48,9 @@ export function validateEvent(input: unknown): EventValidation {
   if (e.errorCode !== undefined && e.errorCode !== null && typeof e.errorCode !== 'string') {
     return { ok: false, reason: 'errorCode must be a string or null.' };
   }
+  if (e.stage !== undefined && e.stage !== null && typeof e.stage !== 'string') {
+    return { ok: false, reason: 'stage must be a string or null.' };
+  }
   if (e.network !== undefined && typeof e.network !== 'string') {
     return { ok: false, reason: 'network must be a string.' };
   }
@@ -61,6 +64,7 @@ export function validateEvent(input: unknown): EventValidation {
     txHash: typeof e.txHash === 'string' ? e.txHash : null,
     durationMs: typeof e.durationMs === 'number' ? e.durationMs : null,
     errorCode: typeof e.errorCode === 'string' ? e.errorCode : null,
+    stage: typeof e.stage === 'string' ? e.stage : null,
     network: typeof e.network === 'string' ? e.network : 'unknown',
   };
   return { ok: true, event };
@@ -77,10 +81,35 @@ export async function recordEvent(
   config: AnalyticsConfig,
 ): Promise<RecordOutcome> {
   const outcome = await insertOperation(db, event);
-  if (outcome === 'inserted' && event.walletAddress) {
-    await applyUserActivity(db, event.walletAddress, event.network ?? 'unknown', event.status ?? 'success', event.operationType);
+  if (outcome === 'inserted') {
+    invalidateMetricsCache();
+    if (event.walletAddress) {
+      await applyUserActivity(db, event.walletAddress, event.network ?? 'unknown', event.status ?? 'success', event.operationType);
+    }
   }
   return outcome;
+}
+
+/**
+ * Record a batch of events (a whole logical action) in one MongoDB round trip.
+ * Exactly-once semantics are preserved per event via the unique
+ * {idempotencyKey, operationType} index; user counters are only incremented for
+ * events that were actually inserted.
+ */
+export async function recordEvents(
+  db: Db,
+  events: AnalyticsEvent[],
+  config: AnalyticsConfig,
+): Promise<Array<{ event: AnalyticsEvent; outcome: RecordOutcome }>> {
+  if (events.length === 0) return [];
+  const results = await insertOperations(db, events);
+  for (const { event, outcome } of results) {
+    if (outcome === 'inserted' && event.walletAddress) {
+      await applyUserActivity(db, event.walletAddress, event.network ?? 'unknown', event.status ?? 'success', event.operationType);
+    }
+  }
+  if (results.some(({ outcome }) => outcome === 'inserted')) invalidateMetricsCache();
+  return results;
 }
 
 export type UsernameValidation =
@@ -134,12 +163,101 @@ export async function registerUsername(db: Db, input: unknown): Promise<Username
   return validation;
 }
 
-function count(db: Db, filter: Record<string, unknown>): Promise<number> {
-  return db.collection(OPERATIONS).countDocuments(filter);
+// ─── Metrics aggregation ──────────────────────────────────────────────────────
+
+type MetricsCounts = {
+  total: number;
+  successful: number;
+  proofGenerated: number;
+  proofVerified: number;
+  permitCreated: number;
+  permitConsumed: number;
+  protectedAction: number;
+  allWallets: number;
+  activeWallets: number;
+  completedWallets: number;
+};
+
+/**
+ * Aggregate every operational metric in a single `$facet` aggregation — one
+ * MongoDB round trip instead of ten countDocuments/distinct queries that pull
+ * full wallet address arrays into Node.js.
+ */
+async function aggregateMetrics(db: Db, filter: Record<string, unknown>, activeSince: Date): Promise<MetricsCounts> {
+  const wallets = { walletAddress: { $ne: null } };
+  const facets = await db.collection(OPERATIONS)
+    .aggregate<{
+      total: Array<{ n: number }>;
+      successful: Array<{ n: number }>;
+      proofGenerated: Array<{ n: number }>;
+      proofVerified: Array<{ n: number }>;
+      permitCreated: Array<{ n: number }>;
+      permitConsumed: Array<{ n: number }>;
+      protectedAction: Array<{ n: number }>;
+      allWallets: Array<{ n: number }>;
+      activeWallets: Array<{ n: number }>;
+      completedWallets: Array<{ n: number }>;
+    }>([
+      {
+        $facet: {
+          total: [{ $match: filter }, { $count: 'n' }],
+          successful: [{ $match: { ...filter, status: 'success' } }, { $count: 'n' }],
+          proofGenerated: [{ $match: { ...filter, operationType: 'proof_generated' } }, { $count: 'n' }],
+          proofVerified: [{ $match: { ...filter, operationType: 'proof_verified' } }, { $count: 'n' }],
+          permitCreated: [{ $match: { ...filter, operationType: 'permit_created' } }, { $count: 'n' }],
+          permitConsumed: [{ $match: { ...filter, operationType: 'permit_consumed' } }, { $count: 'n' }],
+          protectedAction: [
+            { $match: { ...filter, operationType: 'protected_action', status: 'success' } },
+            { $count: 'n' },
+          ],
+          allWallets: [
+            { $match: { ...filter, ...wallets } },
+            { $group: { _id: '$walletAddress' } },
+            { $count: 'n' },
+          ],
+          activeWallets: [
+            { $match: { ...filter, ...wallets, createdAt: { $gte: activeSince } } },
+            { $group: { _id: '$walletAddress' } },
+            { $count: 'n' },
+          ],
+          completedWallets: [
+            { $match: { ...filter, ...wallets, operationType: 'protected_action', status: 'success' } },
+            { $group: { _id: '$walletAddress' } },
+            { $count: 'n' },
+          ],
+        },
+      },
+    ])
+    .toArray();
+
+  const first = facets[0] ?? {};
+  const n = (arr: Array<{ n: number }> | undefined): number => arr?.[0]?.n ?? 0;
+  const total = n(first.total);
+  return {
+    total,
+    successful: n(first.successful),
+    proofGenerated: n(first.proofGenerated),
+    proofVerified: n(first.proofVerified),
+    permitCreated: n(first.permitCreated),
+    permitConsumed: n(first.permitConsumed),
+    protectedAction: n(first.protectedAction),
+    allWallets: n(first.allWallets),
+    activeWallets: n(first.activeWallets),
+    completedWallets: n(first.completedWallets),
+  };
 }
 
-function distinctWallets(db: Db, filter: Record<string, unknown>): Promise<string[]> {
-  return db.collection(OPERATIONS).distinct('walletAddress', filter);
+// Short-TTL in-memory cache so the landing page poll (every 30 s) and parallel
+// requests never hammer MongoDB for an aggregate that barely changes.
+const metricsCache = new Map<string, { at: number; snapshot: MetricsSnapshot }>();
+
+/** Drop the cached snapshot after any real insert so the next read is fresh. */
+function invalidateMetricsCache(): void {
+  metricsCache.clear();
+}
+
+function cachedMetricsKey(network?: string): string {
+  return network && network !== 'all' ? network : 'all';
 }
 
 /**
@@ -151,48 +269,42 @@ function distinctWallets(db: Db, filter: Record<string, unknown>): Promise<strin
  * the filter.
  */
 export async function buildMetrics(db: Db, config: AnalyticsConfig, network?: string): Promise<MetricsSnapshot> {
+  const key = cachedMetricsKey(network);
+  const cached = metricsCache.get(key);
+  if (cached && Date.now() - cached.at < config.metricsCacheTtlMs) {
+    return cached.snapshot;
+  }
+
   const filter = network && network !== 'all' ? { network } : {};
   const activeSince = new Date(Date.now() - config.activeWindowDays * 86_400_000);
 
-  const total = await count(db, filter);
-  const successful = await count(db, { ...filter, status: 'success' });
-  const failed = total - successful;
-
-  const [generated, verified, permitsCreated, permitsConsumed, protectedActions] = await Promise.all([
-    count(db, { ...filter, operationType: 'proof_generated' }),
-    count(db, { ...filter, operationType: 'proof_verified' }),
-    count(db, { ...filter, operationType: 'permit_created' }),
-    count(db, { ...filter, operationType: 'permit_consumed' }),
-    count(db, { ...filter, operationType: 'protected_action', status: 'success' }),
-  ]);
-
-  const [allWallets, activeWallets, completedWallets, preprodUsers] = await Promise.all([
-    distinctWallets(db, { ...filter, walletAddress: { $ne: null } }),
-    distinctWallets(db, { ...filter, walletAddress: { $ne: null }, createdAt: { $gte: activeSince } }),
-    distinctWallets(db, {
-      ...filter,
-      walletAddress: { $ne: null },
-      operationType: 'protected_action',
-      status: 'success',
-    }),
+  const [counts, preprodUsers] = await Promise.all([
+    aggregateMetrics(db, filter, activeSince),
     db.collection(USERS).countDocuments({ firstSeenNetwork: config.preprodTargetNetwork }),
   ]);
 
-  return {
+  const snapshot: MetricsSnapshot = {
     users: {
-      total: allWallets.length,
-      active: activeWallets.length,
-      completedFlow: completedWallets.length,
+      total: counts.allWallets,
+      active: counts.activeWallets,
+      completedFlow: counts.completedWallets,
     },
-    operations: { total, successful, failed },
-    proofs: { generated, verified },
-    permits: { created: permitsCreated, consumed: permitsConsumed },
-    protectedActions,
-    successRate: total > 0 ? Math.round((successful / total) * 1000) / 10 : 0,
+    operations: {
+      total: counts.total,
+      successful: counts.successful,
+      failed: counts.total - counts.successful,
+    },
+    proofs: { generated: counts.proofGenerated, verified: counts.proofVerified },
+    permits: { created: counts.permitCreated, consumed: counts.permitConsumed },
+    protectedActions: counts.protectedAction,
+    successRate: counts.total > 0 ? Math.round((counts.successful / counts.total) * 1000) / 10 : 0,
     preprodUsers,
     preprodTarget: config.preprodTargetCount,
     network: network && network !== 'all' ? network : 'all',
   };
+
+  metricsCache.set(key, { at: Date.now(), snapshot });
+  return snapshot;
 }
 
 /** Admin-only wallet export (never exposed on the public landing page). */

@@ -37,6 +37,8 @@ export type AnalyticsEvent = {
   durationMs?: number | null;
   /** Safe error code (from classifyError) for failed operations. */
   errorCode?: string | null;
+  /** Coarse lifecycle stage of a failed operation (never raw error text). */
+  stage?: string | null;
   /** Network the wallet was on when the event happened. */
   network?: string;
 };

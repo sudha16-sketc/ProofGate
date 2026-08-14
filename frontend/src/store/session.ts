@@ -16,7 +16,7 @@ import { useSyncExternalStore } from 'react';
 
 import { getConnectedApi, getConnectionState } from '../hooks/useMidnight';
 import { CONTRACT_ADDRESS } from '../lib/env';
-import { classifyError, friendlyError } from '../lib/errors';
+import { classifyError, classifyStage, friendlyError } from '../lib/errors';
 import { newIdempotencyKey, trackEvent, type OperationType } from '../lib/analytics';
 import {
   DEFAULT_CREDENTIAL_VERSION,
@@ -244,12 +244,31 @@ function patchActivity(id: number, patch: Partial<ActivityItem>): void {
   emit();
 }
 
+/**
+ * Change detection: the ledger reference is only replaced (and subscribers only
+ * notified) when the on-chain state actually moved — `seq` increments on every
+ * transaction, and the remaining fields are cheap invariant checks.
+ */
+function ledgerChanged(view: LedgerView): boolean {
+  const prev = _ledger;
+  if (!prev) return true;
+  return (
+    prev.seq !== view.seq ||
+    prev.owner !== view.owner ||
+    prev.deployerId !== view.deployerId ||
+    prev.contractDomain !== view.contractDomain ||
+    prev.activePolicyId !== view.activePolicyId ||
+    prev.activePolicyVersion !== view.activePolicyVersion
+  );
+}
+
 export async function refreshLedger(): Promise<boolean> {
   const providers = providersRef;
   const addr = _address;
   if (!providers || !addr) return false;
   try {
     const view = await fetchLedgerView(providers, addr);
+    if (!ledgerChanged(view)) return true;
     ledgerVersion += 1;
     _ledger = view;
     emit();
@@ -266,6 +285,7 @@ async function refreshLedgerQuiet(): Promise<void> {
   if (!providers || !addr) return;
   try {
     const view = await fetchLedgerView(providers, addr);
+    if (!ledgerChanged(view)) return;
     ledgerVersion += 1;
     _ledger = view;
     emit();
@@ -473,20 +493,24 @@ export async function runContractCall(
       });
     }
 
-    await refreshLedger();
+    // Do not block the caller on an indexer round trip — the transaction is
+    // already confirmed and the 10 s ledger poll picks the new state up.
+    void refreshLedgerQuiet();
     return result;
   } catch (err) {
     const { kind, detail } = classifyError(err);
     patchActivity(entry.id, { status: 'failed', detail: detail || undefined });
     setMessage({ kind: 'error', text: `${opts.label}: ${friendlyError(err)}`, detail: detail || undefined });
 
-    // Best-effort analytics: report the failure as a safe, classified code.
+    // Best-effort analytics: report the failure as a safe, classified code
+    // plus a coarse lifecycle stage — never raw error text.
     trackEvent({
       idempotencyKey: attemptId,
       operationType: 'operation_failed',
       status: 'failed',
       walletAddress: address,
       errorCode: kind,
+      stage: classifyStage(kind),
       durationMs: Date.now() - startedAt,
       network: networkId,
     });
@@ -542,12 +566,11 @@ export async function registerCredential(): Promise<TxResult | null> {
 }
 
 export async function requestPermit(feature: string): Promise<TxResult | null> {
-  const privateState = privateStateRef;
   return runContractCall({ circuit: 'requestPermit', label: 'Request permit', feature }, async (p, handle) => {
-    const addr = _address;
-    if (!addr || !privateState) throw new Error('Session is not ready.');
-    const view = await fetchLedgerView(p, addr);
-    const pseudonym = deriveMeta(view, privateState)?.myPseudonym ?? null;
+    // The pseudonym is derived from the domain + the session's subject keys,
+    // which are immutable for this session — the cached ledger meta is used
+    // instead of paying an extra indexer round trip before the transaction.
+    const pseudonym = computeMeta()?.myPseudonym ?? null;
     if (!pseudonym) throw new Error('Credential not registered — register it first.');
 
     // Compute expiresAt as exactly 5 years from now (calendar-aware), using
@@ -560,7 +583,7 @@ export async function requestPermit(feature: string): Promise<TxResult | null> {
     const expiresAt = BigInt(Math.floor(dt.getTime() / 1000));
 
     const tx = await handle.callTx.requestPermit(pad32(feature), expiresAt, le32(expiresAt));
-    const id = await findPermitId(p, addr, toBytes32(pseudonym), pad32(feature));
+    const id = await findPermitId(p, _address!, toBytes32(pseudonym), pad32(feature));
     return { txId: tx.public.txId, permitId: id ?? undefined, extra: id ? undefined : 'awaiting indexer…' };
   });
 }

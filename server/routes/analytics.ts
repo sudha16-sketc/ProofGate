@@ -18,6 +18,7 @@ import {
   buildMetrics,
   listWallets,
   recordEvent,
+  recordEvents,
   registerUsername,
   validateEvent,
 } from '../services/analytics';
@@ -56,6 +57,41 @@ export function analyticsRouter(db: Db, config: AnalyticsConfig): Router {
     }
     const outcome = await recordEvent(db, validation.event, config);
     res.status(201).json({ accepted: true, outcome });
+  });
+
+  // Batched ingestion: one logical action reports several operation events;
+  // the client coalesces them into a single request to cut round trips.
+  router.post('/events/batch', eventLimiter, async (req, res) => {
+    const rawEvents = Array.isArray(req.body?.events) ? req.body.events : null;
+    if (!rawEvents) {
+      res.status(400).json({ error: 'Batch body must be { events: [...] }.' });
+      return;
+    }
+    if (rawEvents.length === 0) {
+      res.status(201).json({ accepted: true, count: 0, outcomes: [] });
+      return;
+    }
+    if (rawEvents.length > config.analyticsBatchMax) {
+      res.status(400).json({ error: `A batch may contain at most ${config.analyticsBatchMax} events.` });
+      return;
+    }
+
+    const events = [];
+    for (const raw of rawEvents) {
+      const validation = validateEvent(raw);
+      if (!validation.ok) {
+        res.status(400).json({ error: validation.reason });
+        return;
+      }
+      events.push(validation.event);
+    }
+
+    const results = await recordEvents(db, events, config);
+    res.status(201).json({
+      accepted: true,
+      count: results.length,
+      outcomes: results.map(({ event, outcome }) => ({ idempotencyKey: event.idempotencyKey, operationType: event.operationType, outcome })),
+    });
   });
 
   const usernameLimiter = rateLimit({

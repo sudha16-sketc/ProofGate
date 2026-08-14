@@ -48,5 +48,21 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // The heavy Midnight/ZK vendor stack gets its own long-cached chunk so
+          // the initial HTML only downloads the app shell + react + gsap.
+          if (id.includes('node_modules')) {
+            if (id.includes('@midnight-ntwrk') || id.includes('midnight-js') || id.includes('zkit')) {
+              return 'midnight';
+            }
+            if (id.includes('gsap')) return 'gsap';
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
 })

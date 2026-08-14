@@ -366,6 +366,10 @@ Endpoints:
 - `GET /api/health` — liveness + Mongo connectivity.
 - `POST /api/events` — anonymous event ingestion, rate-limited, exactly-once
   idempotent (unique `{idempotencyKey, operationType}` index).
+- `POST /api/events/batch` — same contract, but a whole logical action (up to
+  `ANALYTICS_BATCH_MAX`, default 50 events) is persisted in **one MongoDB
+  round trip**. The client coalesces each action's events into a single request
+  to cut network round trips; deduplication still applies per event.
 - `GET /api/admin/users` — **admin-only** wallet export, guarded by a bearer
   token (`ADMIN_API_TOKEN`); never exposed on the public page.
 

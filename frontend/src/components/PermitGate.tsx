@@ -149,7 +149,9 @@ async function findPermitId(
       const view = await fetchLedgerView(providers, address);
       let newest: { id: string; issuedAt: bigint } | null = null;
       for (const p of view.permits) {
-        if (p.holder === pseudonymHex && hex(toBytes32(p.feature)) === featureHex) {
+        // The contract stores feature strings zero-padded to 32 bytes; re-encode
+        // the decoded string so it matches what the ledger contains.
+        if (p.holder === pseudonymHex && hex(pad32(p.feature)) === featureHex) {
           if (!newest || p.issuedAt > newest.issuedAt) newest = { id: p.id, issuedAt: p.issuedAt };
         }
       }

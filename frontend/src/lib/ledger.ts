@@ -7,7 +7,7 @@
 import * as ProofGateContractModule from '../../../managed/proofgate/contract/index.js';
 import type { ProofGateProviders } from './providers';
 import { hex, sleep, type ProofGatePrivateState } from './proofgate';
-import { deployerId, subjectKey } from './schnorr';
+import { deployerId, pad32, subjectKey } from './schnorr';
 
 export const ZEROS = '00'.repeat(32);
 
@@ -147,16 +147,19 @@ export async function findPermitId(
   address: string,
   pseudonym: Uint8Array,
   feature: Uint8Array,
-  attempts = 15,
+  attempts = 8,
+  delayMs = 1500,
 ): Promise<string | null> {
   const pseudonymHex = hex(pseudonym);
+  // The contract stores feature strings zero-padded to 32 bytes; re-encode the
+  // decoded string so it matches what the ledger contains.
   const featureHex = hex(feature);
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const view = await fetchLedgerView(providers, address);
       let newest: { id: string; issuedAt: bigint } | null = null;
       for (const p of view.permits) {
-        if (p.holder === pseudonymHex && hex(toBytes32(p.feature)) === featureHex) {
+        if (p.holder === pseudonymHex && hex(pad32(p.feature)) === featureHex) {
           if (!newest || p.issuedAt > newest.issuedAt) newest = { id: p.id, issuedAt: p.issuedAt };
         }
       }
@@ -164,7 +167,7 @@ export async function findPermitId(
     } catch {
       // indexer may lag — keep polling
     }
-    await sleep(3000);
+    await sleep(delayMs);
   }
   return null;
 }
