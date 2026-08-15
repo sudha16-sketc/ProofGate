@@ -29,8 +29,10 @@ export function createApp({ db, config, staticDir }: CreateAppOptions): Express 
   const app = express();
 
   app.use(cors({ origin: config.corsOrigin }));
-  // Stream /check and /prove to the proof-server sidecar. Must come before the
-  // JSON body parser so raw octet-stream proving payloads pass through untouched.
+  // Stream /check and /prove to the Midnight proof server (reached via the
+  // PROOF_SERVER_URL tunnel; the proof server itself runs on a developer
+  // machine, never on Render). Must come before the JSON body parser so raw
+  // octet-stream proving payloads pass through untouched.
   app.use(createProofRelayRouter(config));
   app.use(express.json({ limit: '32kb' }));
 

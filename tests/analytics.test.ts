@@ -10,14 +10,14 @@
  * If the mongod binary cannot be provisioned (e.g. offline), the suite skips
  * rather than failing the build.
  */
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
+import { createServer, type Server } from 'node:http';
 
 import { createApp, ensureAnalyticsIndexes } from '../server/app';
 import { connectAnalyticsDb, type AnalyticsDb } from '../server/db/mongodb';
-import { loadConfig } from '../server/config';
+import { loadConfig, type AnalyticsConfig } from '../server/config';
 import { OPERATION_TYPES, type MetricsSnapshot } from '../server/models/types';
 
 const WALLET_PREPROD_A = '0x1111'.padEnd(56, 'a');
@@ -398,5 +398,125 @@ describeSuite('analytics store & API', () => {
     const preprodUser = body.users.find((u) => u.walletAddress === WALLET_PREPROD_A);
     expect(preprodUser?.network).toBe('preprod');
     expect(preprodUser?.totalOperations).toBeGreaterThanOrEqual(2);
+  });
+
+  describe('proof relay & proof-server health', () => {
+    // The relay is a pure byte-forwarding hop: the API never proves anything —
+    // it streams /check and /prove to PROOF_SERVER_URL. These tests drive it
+    // against a local fake "proof server" to verify health reporting, the
+    // shared-secret header, single-flight /prove serialisation, and the
+    // unreachable-server 502 path.
+    let upstream: Server;
+    let upstreamUrl: string;
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let seenAuthorization: string | undefined;
+    const relayApps: Server[] = [];
+
+    beforeAll(async () => {
+      upstream = createServer((req, res) => {
+        seenAuthorization = req.headers.authorization;
+        if (req.method === 'GET') {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok' }));
+          return;
+        }
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        let body: Buffer = Buffer.alloc(0);
+        req.on('data', (chunk: Buffer) => {
+          body = Buffer.concat([body, chunk]);
+        });
+        req.on('end', () => {
+          setTimeout(() => {
+            inFlight -= 1;
+            res.writeHead(200, { 'content-type': 'application/octet-stream' });
+            res.end(body);
+          }, 60);
+        });
+      });
+      await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', () => resolve()));
+      upstreamUrl = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+    });
+
+    afterAll(async () => {
+      await Promise.all(
+        relayApps.splice(0).map((s) => new Promise<void>((resolve) => s.close(() => resolve()))),
+      );
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    });
+
+    async function startRelayApp(overrides: Partial<AnalyticsConfig> = {}): Promise<string> {
+      const config: AnalyticsConfig = {
+        ...loadConfig(),
+        proofServerUrl: upstreamUrl,
+        proofServerAuthToken: 'relay-secret',
+        proofServerTimeoutMs: 5_000,
+        ...overrides,
+      };
+      const app = createApp({ db: suite!.db.db, config });
+      const server = app.listen(0);
+      relayApps.push(server);
+      await new Promise<void>((resolve) => server.once('listening', () => resolve()));
+      return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    }
+
+    it('reports the proof server up via the health endpoint', async () => {
+      const baseUrl = await startRelayApp();
+      const res = await fetch(`${baseUrl}/api/proof-server/health`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.ok).toBe(true);
+      expect(body.proofServer).toBe('up');
+      expect(seenAuthorization).toBe('Bearer relay-secret');
+    });
+
+    it('relays /check and forwards the shared-secret header', async () => {
+      const baseUrl = await startRelayApp();
+      const res = await fetch(`${baseUrl}/check`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: Buffer.from('check-payload'),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('check-payload');
+      expect(seenAuthorization).toBe('Bearer relay-secret');
+    });
+
+    it('serialises concurrent /prove requests (single-flight)', async () => {
+      const baseUrl = await startRelayApp();
+      maxInFlight = 0;
+      const results = await Promise.all(
+        ['payload-a', 'payload-b', 'payload-c'].map((body) =>
+          fetch(`${baseUrl}/prove`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/octet-stream' },
+            body: Buffer.from(body),
+          }).then(async (res) => ({ status: res.status, text: await res.text() })),
+        ),
+      );
+      for (const result of results) {
+        expect(result.status).toBe(200);
+      }
+      expect(results.map((r) => r.text).sort()).toEqual(['payload-a', 'payload-b', 'payload-c']);
+      expect(maxInFlight).toBe(1);
+    });
+
+    it('returns a clear 502 when the proof server is unreachable', async () => {
+      const baseUrl = await startRelayApp({ proofServerUrl: 'http://127.0.0.1:1' });
+      const health = await fetch(`${baseUrl}/api/proof-server/health`);
+      const healthBody = (await health.json()) as Record<string, unknown>;
+      expect(healthBody.ok).toBe(false);
+      expect(healthBody.proofServer).toBe('down');
+
+      const res = await fetch(`${baseUrl}/prove`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: Buffer.from('boom'),
+      });
+      expect(res.status).toBe(502);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.error).toBe('Proof server unreachable.');
+    });
   });
 });

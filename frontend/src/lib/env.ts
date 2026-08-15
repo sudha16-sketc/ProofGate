@@ -110,11 +110,15 @@ export const INDEXER_URL = import.meta.env.VITE_INDEXER_URL?.trim() || PRESET.in
 /**
  * Proof-server endpoint used by `httpClientProofProvider`.
  *
- * Defaults to the SAME ORIGIN: in the single-server deployment the Express
- * backend relays /check and /prove to the Midnight proof-server sidecar, and
- * in dev the Vite proxy forwards them to the local `midnightntwrk/proof-server`
- * (http://127.0.0.1:6300). Override with VITE_PROOF_SERVER_URL to use any other
- * compatible endpoint instead.
+ * Defaults to the SAME ORIGIN: the deployed Express backend relays /check and
+ * /prove to the LOCAL proof server through a secure tunnel (PROOF_SERVER_URL on
+ * the API), and in dev the Vite proxy forwards them to the local
+ * `midnightntwrk/proof-server` (http://127.0.0.1:6300). Override with
+ * VITE_PROOF_SERVER_URL to point the dApp at any compatible endpoint instead
+ * (e.g. the proofgate-api Render service that hosts the relay).
+ *
+ * ZK proving never runs on Render: the browser reaches the API, which only
+ * streams payloads onward. See docs/PROVING_ARCHITECTURE.md.
  */
 export const PROOF_SERVER_URL =
   import.meta.env.VITE_PROOF_SERVER_URL?.trim() ||

@@ -39,10 +39,19 @@ export type AnalyticsConfig = {
   /** Allowed CORS origin for the browser client (default: any localhost dev). */
   corsOrigin: string;
   /**
-   * Base URL of the Midnight proof-server sidecar that the /check and /prove
-   * relay endpoints stream to (default: the same-container localhost:6300).
+   * Base URL of the Midnight proof server that the /check and /prove relay
+   * endpoints stream to. In production this is the HTTPS URL of the secure
+   * tunnel to the LOCAL proof server (e.g. https://<tunnel>.trycloudflare.com);
+   * locally it is the docker-compose proof server (http://127.0.0.1:6300).
    */
   proofServerUrl: string;
+  /**
+   * Optional shared secret the relay sends as `Authorization: Bearer <token>`
+   * to PROOF_SERVER_URL. Lets the local proof server sit behind the small
+   * authenticating tunnel proxy (proof-server/tunnel-proxy.mjs) instead of
+   * being an open public endpoint. Empty means no Authorization header.
+   */
+  proofServerAuthToken: string;
   /**
    * Hard cap (ms) for a single relayed /prove round trip. Proofs on a
    * cold-started server (SRS params download) or heavy circuits routinely
@@ -70,6 +79,7 @@ export function loadConfig(): AnalyticsConfig {
     activeWindowDays: int('ANALYTICS_ACTIVE_DAYS', 30),
     corsOrigin: env('CORS_ORIGIN') ?? '*',
     proofServerUrl: env('PROOF_SERVER_URL') ?? 'http://127.0.0.1:6300',
+    proofServerAuthToken: env('PROOF_SERVER_AUTH_TOKEN') ?? '',
     proofServerTimeoutMs: int('PROOF_SERVER_TIMEOUT_MS', 20 * 60_000),
     rateLimitWindowMs: int('ANALYTICS_RATE_LIMIT_MS', 60_000),
     rateLimitMax: int('ANALYTICS_RATE_LIMIT_MAX', 120),

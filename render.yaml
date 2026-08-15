@@ -1,51 +1,33 @@
-# ProofGate — Render Blueprint for the two independently-deployed servers.
+# ProofGate — Render Blueprint for the lightweight analytics/relay API ONLY.
 #
-#   proofgate-proof-server — Midnight ZK proof server (VITE_PROOF_SERVER_URL)
-#   proofgate-api          — analytics/API server (VITE_API_URL)
+#   proofgate-api — analytics/API server (VITE_API_URL) AND the /check /prove
+#                   relay to the LOCAL Midnight proof server via a secure tunnel
 #
 # The frontend is built and hosted separately (static Vite build of
-# frontend/dist) and points at these two services via frontend/.env.local.
+# frontend/dist) and points at this service via frontend/.env.local.
+#
+# ZK proving NEVER runs on Render. The official `midnightntwrk/proof-server`
+# runs on a developer machine (16 GB RAM), caches its ZK parameters there, and
+# is reached by this service through an HTTPS tunnel URL set in PROOF_SERVER_URL.
+# Render only streams proving payloads between the browser and that tunnel — it
+# loads no SRS parameters and no proving keys, so the free plan (512 MB RAM /
+# 0.1 CPU) is more than enough.
 #
 # Blueprint usage:
 #   1. Create a new Blueprint on dashboard.render.com and paste this file's
 #      contents (or push it and use "Blueprint" from the repo).
 #   2. Fill the sync:false secrets (MONGODB_URI, ADMIN_API_TOKEN, CORS_ORIGIN,
-#      PROOF_SERVER_URL) in the dashboard.
-#   3. Copy each service's *.onrender.com URL into frontend/.env.local as
-#      VITE_PROOF_SERVER_URL / VITE_API_URL, then rebuild the frontend.
+#      PROOF_SERVER_URL, PROOF_SERVER_AUTH_TOKEN) in the dashboard.
+#   3. Copy this service's *.onrender.com URL into frontend/.env.local as
+#      VITE_API_URL and VITE_PROOF_SERVER_URL, then rebuild the frontend.
+#      See docs/PROVING_ARCHITECTURE.md for the local proof server + tunnel setup.
 
 services:
-  # --- Midnight proof server (ZK proving backend) --------------------------
-  #
-  # Plan sizing: the official image holds the BLS12-381 public parameters and
-  # multi-MB proving keys in memory while proving; the 512 MB `starter` plan
-  # OOMs mid-proof ("Ran out of memory while running your code"), which kills
-  # the connection and surfaces as "Failed to fetch". `standard` (2 GB / 1 CPU)
-  # is the minimum that completes; bump to `pro` (4 GB / 2 CPU) to roughly
-  # halve proof latency on CPU-bound circuits.
-  - type: web
-    name: proofgate-proof-server
-    runtime: docker
-    plan: standard
-    dockerfilePath: proof-server/Dockerfile
-    # GET / returns 200 on the official image.
-    healthCheckPath: /
-    # Persist the SRS params + proving keys the image downloads on first boot.
-    # Without this, every restart (deploy, platform maintenance, OOM) re-fetches
-    # them from srs.midnight.network, adding minutes to the first proof.
-    disk:
-      name: zk-params
-      mountPath: /.cache/midnight/zk-params
-      sizeGB: 5
-    envVars:
-      - key: RUST_LOG
-        value: info
-
-  # --- ProofGate analytics/API server -------------------------------------
+  # --- ProofGate analytics/API server + proof relay ------------------------
   - type: web
     name: proofgate-api
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: server/Dockerfile
     healthCheckPath: /api/health
     envVars:
@@ -57,8 +39,19 @@ services:
       # exact origin of the deployed frontend (e.g. https://proofgate.vercel.app).
       - key: CORS_ORIGIN
         sync: false
-      # Public URL of proofgate-proof-server above, used by the /check /prove
-      # relay when the browser is pointed at this service instead of the proof
-      # server directly.
+      # HTTPS URL of the secure tunnel to the LOCAL proof server
+      # (e.g. https://<your-tunnel>.trycloudflare.com). The relay streams
+      # /check and /prove here; proving runs on the developer machine, never
+      # on Render.
       - key: PROOF_SERVER_URL
         sync: false
+      # Shared secret the relay sends as `Authorization: Bearer <token>` so the
+      # local tunnel proxy (proof-server/tunnel-proxy.mjs) accepts the request.
+      # Must match the PROOF_SERVER_AUTH_TOKEN the tunnel proxy runs with.
+      - key: PROOF_SERVER_AUTH_TOKEN
+        sync: false
+      # Hard cap (ms) for a relayed /prove round trip. Default 1200000 (20 min).
+      # Keep well above 5 minutes: cold-started proof servers and heavy circuits
+      # take minutes, and a premature abort surfaces as "Failed to fetch".
+      - key: PROOF_SERVER_TIMEOUT_MS
+        value: "1200000"

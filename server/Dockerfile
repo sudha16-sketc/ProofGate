@@ -1,8 +1,12 @@
-# ProofGate — analytics/API server, deployed independently on Render.
+# ProofGate — analytics/API server + proof relay, deployed independently on
+# Render's FREE plan. It NEVER performs ZK proving:
 #
 #   /api            analytics endpoints (events, metrics, health, admin)
-#   /check, /prove  optional relay to the separately-deployed proof server
-#                   (set PROOF_SERVER_URL to its public URL)
+#   /check, /prove  relay that streams proving payloads to PROOF_SERVER_URL
+#                   (the secure HTTPS tunnel to the LOCAL proof server)
+#
+# No SRS parameters and no proving keys are bundled or downloaded here; the
+# relay is a pure byte-forwarding hop. See docs/PROVING_ARCHITECTURE.md.
 #
 # The frontend is NOT built here: it is deployed as its own static site and
 # pointed at this service via VITE_API_URL / VITE_PROOF_SERVER_URL in

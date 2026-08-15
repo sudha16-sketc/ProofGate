@@ -521,11 +521,20 @@ gracefully to "Metrics temporarily unavailable" when it is not running.
 > **Why a proof server is required:** ProofGate uses custom circuits, so proving
 > must happen against a server that holds (or receives) the circuit keys. The
 > Lace wallet's own proving backend cannot prove custom circuits — attempts fail
-> with `{"error": "key not found: <circuit>"}` — so `frontend/.env.example`
-> sets `VITE_PROOF_SERVER_URL=http://127.0.0.1:6300` and the dApp proves via
-> the official `midnightntwrk/proof-server` using the same `httpClientProofProvider`
+> with `{"error": "key not found: <circuit>"}` — so the dApp proves via the
+> official `midnightntwrk/proof-server` using the same `httpClientProofProvider`
 > path as the CLI. The wallet is still used for signing, balancing, and
 > submission. There is no Midnight-hosted public proof server.
+>
+> **Where proving runs (Render is relay-only):** the Midnight proof server is
+> memory- and CPU-hungry and does **not** run on Render. It runs locally via
+> `docker compose up -d --wait proof-server` (see
+> [`docs/PROVING_ARCHITECTURE.md`](./docs/PROVING_ARCHITECTURE.md)). The deployed
+> Render API (`proofgate-api`, free plan) only streams `/check` and `/prove`
+> payloads to a secure HTTPS tunnel (`PROOF_SERVER_URL`) in front of the local
+> server — Render loads no SRS parameters and no proving keys. Locally the
+> browser talks to `http://127.0.0.1:6300` directly (or through the Vite dev
+> proxy); deployed it goes `browser → Render API → tunnel → local proof server`.
 
 ### Live demo
 
