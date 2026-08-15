@@ -121,6 +121,22 @@ export const PROOF_SERVER_URL =
   PRESET.proofServer ||
   (typeof window !== 'undefined' ? window.location.origin : '');
 
+/**
+ * Per-proof HTTP timeout (ms) when proving through a remote proof server.
+ *
+ * The `midnight-js-http-client-proof-provider` default is 300_000 (5 min).
+ * Cold-started Midnight proof servers download SRS params + proving keys on
+ * first boot, and CPU-heavy circuits (e.g. registerCredential) take minutes —
+ * both routinely exceed 5 min and the browser aborts the fetch ("Failed to
+ * fetch"). Default to 20 minutes; tune via VITE_PROOF_SERVER_TIMEOUT_MS.
+ */
+export const PROOF_SERVER_TIMEOUT_MS = (() => {
+  const raw = import.meta.env.VITE_PROOF_SERVER_TIMEOUT_MS?.trim();
+  if (!raw) return 20 * 60_000;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 20 * 60_000;
+})();
+
 /** Derive the indexer's GraphQL WebSocket URL from its HTTP URL. */
 export function indexerWsUrl(httpUrl: string): string {
   return httpUrl.replace(/^http/, 'ws').replace(/\/graphql$/, '/graphql/ws');

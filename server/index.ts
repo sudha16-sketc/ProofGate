@@ -36,6 +36,14 @@ async function main(): Promise<void> {
     console.log(`[proofgate-analytics] listening on :${config.port} (db=${config.mongoDatabase})`);
   });
 
+  // The /prove relay streams a ZK proof request to the proof server and the
+  // binary response back; a proof can legitimately take many minutes. Node's
+  // default `requestTimeout` (5 min) destroys the socket before the response is
+  // sent, surfacing in the browser as "Failed to fetch". Disable it so a slow
+  // proof is never cut off by the framework. (header parsing stays bounded by
+  // the default `headersTimeout`.)
+  server.requestTimeout = 0;
+
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[proofgate-analytics] ${signal} — shutting down`);
     server.close();

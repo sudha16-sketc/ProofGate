@@ -21,20 +21,33 @@ import type { AnalyticsConfig } from './config';
 const RELAY_PATHS = ['/check', '/prove'] as const;
 
 // /check only validates inputs (fast); /prove generates a ZK proof and can take
-// minutes on slow circuits. Timeouts must never truncate a real proof.
-const PATH_TIMEOUT_MS: Record<(typeof RELAY_PATHS)[number], number> = {
-  '/check': 60_000,
-  '/prove': 5 * 60_000,
-};
+// minutes on slow circuits. The /prove cap comes from the PROOF_SERVER_TIMEOUT_MS
+// env (default 20 min) and must never truncate a real proof; /check stays at a
+// fast 60 s since it never does proving work.
+const CHECK_TIMEOUT_MS = 60_000;
 
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 16, timeout: 5 * 60_000 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 16, timeout: 5 * 60_000 });
+const PROOF_TIMEOUT_MS = (config: AnalyticsConfig): number => config.proofServerTimeoutMs;
 
-function relay(config: AnalyticsConfig) {
+// The keep-alive agents must outlive the longest possible /prove so a slow proof
+// is never cut off by a socket-level timeout. They are created once per router
+// and shared across all requests (connection reuse).
+type Agents = { http: http.Agent; https: https.Agent };
+
+function agentsFor(config: AnalyticsConfig): Agents {
+  const timeout = PROOF_TIMEOUT_MS(config);
+  return {
+    http: new http.Agent({ keepAlive: true, maxSockets: 16, timeout }),
+    https: new https.Agent({ keepAlive: true, maxSockets: 16, timeout }),
+  };
+}
+
+function relay(config: AnalyticsConfig, agents: Agents) {
   return (req: Request, res: Response): void => {
     const upstream = new URL(`${config.proofServerUrl}${req.path}`);
     const transport = upstream.protocol === 'https:' ? https : http;
     const startedAt = Date.now();
+    const requestTimeout =
+      req.path === '/prove' ? PROOF_TIMEOUT_MS(config) : CHECK_TIMEOUT_MS;
 
     const outReq = transport.request(
       {
@@ -42,8 +55,8 @@ function relay(config: AnalyticsConfig) {
         port: upstream.port || (upstream.protocol === 'https:' ? 443 : 80),
         path: `${upstream.pathname}${upstream.search}`,
         method: 'POST',
-        agent: upstream.protocol === 'https:' ? httpsAgent : httpAgent,
-        timeout: PATH_TIMEOUT_MS[req.path as (typeof RELAY_PATHS)[number]] ?? 60_000,
+        agent: upstream.protocol === 'https:' ? agents.https : agents.http,
+        timeout: requestTimeout,
         headers: {
           'content-type': req.headers['content-type'] ?? 'application/octet-stream',
           'content-length': req.headers['content-length'],
@@ -60,7 +73,7 @@ function relay(config: AnalyticsConfig) {
     );
 
     outReq.on('timeout', () => {
-      console.error(`[proof-relay] upstream ${req.path} timed out after ${PATH_TIMEOUT_MS[req.path as (typeof RELAY_PATHS)[number]] ?? 60_000}ms`);
+      console.error(`[proof-relay] upstream ${req.path} timed out after ${requestTimeout}ms`);
       outReq.destroy(new Error('Upstream timeout'));
     });
 
@@ -84,8 +97,9 @@ function relay(config: AnalyticsConfig) {
 /** Router mounting the /check and /prove relay endpoints. Mounted before body parsers. */
 export function createProofRelayRouter(config: AnalyticsConfig): Router {
   const router = Router();
+  const agents = agentsFor(config);
   for (const path of RELAY_PATHS) {
-    router.post(path, relay(config));
+    router.post(path, relay(config, agents));
   }
   return router;
 }

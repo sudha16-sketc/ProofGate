@@ -29,7 +29,7 @@ import type { PrivateStateId } from '@midnight-ntwrk/midnight-js-types';
 
 import { inMemoryPrivateStateProvider } from './in-memory-private-state-provider';
 import type { ProofGatePrivateState } from './proofgate';
-import { NETWORK, PROOF_SERVER_URL } from './env';
+import { NETWORK, PROOF_SERVER_TIMEOUT_MS, PROOF_SERVER_URL } from './env';
 import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
 export type ProofGateProviders = {
@@ -86,8 +86,17 @@ export async function buildProofGateProviders(
   // Proving is in-wallet by default (Preview-first, no proof server, no Docker).
   // When VITE_PROOF_SERVER_URL is set explicitly, prove via that endpoint
   // (e.g. a locally-run official `midnightntwrk/proof-server` instance).
+  //
+  // The SDK default /prove timeout is 5 minutes — cold-started servers that
+  // must download SRS params first, plus CPU-heavy circuits (registerCredential
+  // proves a full Schnorr verification), routinely exceed it and the browser
+  // aborts with "Failed to fetch". Raise it (configurable via
+  // VITE_PROOF_SERVER_TIMEOUT_MS, default 20 minutes) so a slow-but-live
+  // server is never cut off mid-proof.
   const proofProvider = PROOF_SERVER_URL
-    ? httpClientProofProvider(PROOF_SERVER_URL, zkConfigProvider)
+    ? httpClientProofProvider(PROOF_SERVER_URL, zkConfigProvider, {
+        timeout: PROOF_SERVER_TIMEOUT_MS,
+      })
     : createProofProvider(await connectedApi.getProvingProvider(zkConfigProvider));
 
   return {

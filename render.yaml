@@ -16,13 +16,27 @@
 
 services:
   # --- Midnight proof server (ZK proving backend) --------------------------
+  #
+  # Plan sizing: the official image holds the BLS12-381 public parameters and
+  # multi-MB proving keys in memory while proving; the 512 MB `starter` plan
+  # OOMs mid-proof ("Ran out of memory while running your code"), which kills
+  # the connection and surfaces as "Failed to fetch". `standard` (2 GB / 1 CPU)
+  # is the minimum that completes; bump to `pro` (4 GB / 2 CPU) to roughly
+  # halve proof latency on CPU-bound circuits.
   - type: web
     name: proofgate-proof-server
     runtime: docker
-    plan: starter
+    plan: standard
     dockerfilePath: proof-server/Dockerfile
     # GET / returns 200 on the official image.
     healthCheckPath: /
+    # Persist the SRS params + proving keys the image downloads on first boot.
+    # Without this, every restart (deploy, platform maintenance, OOM) re-fetches
+    # them from srs.midnight.network, adding minutes to the first proof.
+    disk:
+      name: zk-params
+      mountPath: /.cache/midnight/zk-params
+      sizeGB: 5
     envVars:
       - key: RUST_LOG
         value: info

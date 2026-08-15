@@ -43,6 +43,12 @@ export type AnalyticsConfig = {
    * relay endpoints stream to (default: the same-container localhost:6300).
    */
   proofServerUrl: string;
+  /**
+   * Hard cap (ms) for a single relayed /prove round trip. Proofs on a
+   * cold-started server (SRS params download) or heavy circuits routinely
+   * exceed 5 minutes, so this must be well above the old 5-minute default.
+   */
+  proofServerTimeoutMs: number;
   /** Rate-limit window (milliseconds) for event ingestion. */
   rateLimitWindowMs: number;
   /** Max events per window per IP. */
@@ -64,6 +70,7 @@ export function loadConfig(): AnalyticsConfig {
     activeWindowDays: int('ANALYTICS_ACTIVE_DAYS', 30),
     corsOrigin: env('CORS_ORIGIN') ?? '*',
     proofServerUrl: env('PROOF_SERVER_URL') ?? 'http://127.0.0.1:6300',
+    proofServerTimeoutMs: int('PROOF_SERVER_TIMEOUT_MS', 20 * 60_000),
     rateLimitWindowMs: int('ANALYTICS_RATE_LIMIT_MS', 60_000),
     rateLimitMax: int('ANALYTICS_RATE_LIMIT_MAX', 120),
     metricsCacheTtlMs: int('ANALYTICS_METRICS_CACHE_TTL_MS', 15_000),
